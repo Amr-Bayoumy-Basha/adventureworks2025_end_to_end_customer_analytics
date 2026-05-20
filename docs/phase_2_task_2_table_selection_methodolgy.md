@@ -561,7 +561,7 @@ GROUP BY YEAR(FirstOrderDate), MONTH(FirstOrderDate);
 - Fully commented with usage instructions
 - Execution guide at the bottom 
 
-**ERD File**: [`phase_2_task_4_customer_analytics_erd.dbml`](./sql/phase_2_task_4_customer_analytics_erd.dbml)
+**ERD File**: [`phase_2_task_4_customer_analytics_erd.dbml`](../sql/phase_2_task_4_customer_analytics_erd.dbml)
 - DBML format (visualize at [dbdiagram.io](https://dbdiagram.io))
 - 17 tables with full column definitions
 - Relationship cardinalities documented
