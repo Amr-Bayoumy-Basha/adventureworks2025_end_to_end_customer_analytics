@@ -1,5 +1,9 @@
 This document provides a **complete step-by-step guide** for anyone new to the AdventureWorks database or customer analytics projects. It shows you exactly how tables were identified, selected, and organized into the final Entity-Relationship Diagram (ERD) used to answer 7 key customer analytics questions.
 
+📅 Document Created: May 2026 👤 Author: Azab Basha
+🏢 Project: AdventureWorks End-to-End Customer Analytics
+📂 Phase: Phase 2 – Table Selection Methodology
+
 ---
 
 ## 📋 Overview
@@ -8,9 +12,9 @@ This document provides a **complete step-by-step guide** for anyone new to the A
 
 **Data Source**: AdventureWorks 2025 (SQL Server)
 
-**Methodology**: 4-phase discovery process using `sql/metadata-exploration-v2.sql`
+**Methodology**: 4-phase discovery process using `sql/phase_2_task_1_metadata_explorqtion.sql`
 
-**Final Output**: Enhanced ERD (`docs/erd-customer-analytics-enhanced.dbml`) with 17 carefully selected tables
+**Final Output**: Enhanced ERD (`sql/phase_2_task_4_customer_analytics_erd.dbml`) with 17 carefully selected tables
 
 ---
 
@@ -71,7 +75,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 **Purpose**: See how tables are organized across schemas.
 
 ```
--- Query #1: Schema Overview (lines 33-41 in metadata-exploration-v2.sql)
+-- Query #1: Schema Overview (phase_2_task_1_metadata_explorqtion.sql)
 ```
 
 **Actual Results**:
@@ -93,7 +97,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 **Purpose**: Auto-identify tables relevant to customer analytics using pattern matching.
 
 ```
--- Query #3: Customer Analytics-Focused Table Finder (lines 71-107 in metadata-exploration-v2.sql)
+-- Query #3: Customer Analytics-Focused Table Finder (phase_2_task_1_metadata_explorqtion.sql)
 ```
 
 **Actual Results**:
@@ -146,7 +150,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 **Purpose**: Get a comprehensive dashboard view combining size, relationships, date columns, and table roles.
 
 ```
--- Query #7: Comprehensive Table Discovery (lines 220-310 in metadata-exploration-v2.sql)
+-- Query #7: Comprehensive Table Discovery (phase_2_task_1_metadata_explorqtion.sql)
 -- This query uses CTEs to combine:
 -- - Table sizes
 -- - Foreign key relationships (incoming/outgoing)
@@ -195,7 +199,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 **Purpose**: Classify tables by their role in the data model.
 
 ```
--- Query #4: Table Relationship Summary with Hub and Spoke Analysis (lines 121-149 in metadata-exploration-v2.sql)
+-- Query #4: Table Relationship Summary with Hub and Spoke Analysis (phase_2_task_1_metadata_explorqtion.sql)
 ```
 
 **Actual Results** (showing top 20 by total relationships):
@@ -233,7 +237,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 **Purpose**: See parent → child relationships to understand data flow.
 
 ```
--- Query #5: Simplified Foreign Key Relationship Map (lines 158-171 in metadata-exploration-v2.sql)
+-- Query #5: Simplified Foreign Key Relationship Map (phase_2_task_1_metadata_explorqtion.sql)
 ```
 
 **Actual Results** (showing top 20 by FK density):
@@ -274,7 +278,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 **Purpose**: Identify temporal columns for RFM, cohorts, and retention analysis.
 
 ```
--- Query #6: Date/Time Columns Finder (lines 180-205 in metadata-exploration-v2.sql)
+-- Query #6: Date/Time Columns Finder (phase_2_task_1_metadata_explorqtion.sql)
 ```
 
 **Actual Results** (showing top 30 by row count):
@@ -383,19 +387,19 @@ Create a **shortlist scorecard** using these criteria:
 #### Step 9: Run Phase 4 Queries with Filters
 For each shortlisted table, run:
 
-**Query #8 - Primary Keys** (lines 323-345):
+**Query #8 - Primary Keys** (phase_2_task_1_metadata_explorqtion.sql):
 ```sql
 -- Find primary keys for ERD unique identifiers
 WHERE SCHEMA_NAME(t.schema_id) = 'Sales' AND t.name = 'Customer';
 ```
 
-**Query #9 - Foreign Key Relationships** (lines 354-381):
+**Query #9 - Foreign Key Relationships** (phase_2_task_1_metadata_explorqtion.sql):
 ```sql
 -- Get FK details for ERD relationship lines
 WHERE SCHEMA_NAME(p.schema_id) = 'Sales' OR p.name LIKE '%Customer%';
 ```
 
-**Query #10 - Column Details** (lines 390-408):
+**Query #10 - Column Details** (phase_2_task_1_metadata_explorqtion.sql):
 ```sql
 -- List all columns for ERD table definitions
 WHERE SCHEMA_NAME(t.schema_id) = 'Sales' AND t.name = 'SalesOrderHeader';
@@ -420,7 +424,7 @@ Table Sales_Customer {
 
 ## 📊 Final ERD Structure
 
-The final ERD (`docs/erd-customer-analytics-enhanced.dbml`) contains **17 tables** organized as:
+The final ERD (`phase_2_task_4_customer_analytics_erd.dbml`) contains **17 tables** organized as:
 
 ### **Dimensions / Hub Tables** (Customer Identity & Context)
 - **Sales.Customer**: Customer master table (CustomerID, PersonID, TerritoryID)
@@ -551,4 +555,30 @@ GROUP BY YEAR(FirstOrderDate), MONTH(FirstOrderDate);
 ---
 
 ## 🛠️ Tools & Resources
-> to be continued 
+
+**SQL Script**: [`phase_2_task_1_metadata_explorqtion.sql`](../sql/phase_2_task_1_metadata_explorqtion.sql)
+- 11 queries organized into 4 phases
+- Fully commented with usage instructions
+- Execution guide at the bottom 
+
+**ERD File**: [`phase_2_task_4_customer_analytics_erd.dbml`](./sql/phase_2_task_4_customer_analytics_erd.dbml)
+- DBML format (visualize at [dbdiagram.io](https://dbdiagram.io))
+- 17 tables with full column definitions
+- Relationship cardinalities documented
+
+**Database**: AdventureWorks 2025 (SQL Server)
+
+---
+
+## 📝 Summary: Methodology at a Glance
+
+| Phase | Time | Queries | Output |
+|-------|------|---------|--------|
+| **1. High-Level Discovery** | 10 min | #1, #3, #7 | Candidate tables + analytics categories |
+| **2. Relationship Discovery** | 10 min | #4, #5, #6 | Table roles (Hub/Spoke) + FK map + temporal columns |
+| **3. Table Shortlisting** | 5 min | Manual review | 17 final tables |
+| **4. Detailed Analysis** | As needed | #8, #9, #10 | Column details + PK/FK definitions for ERD | #11 | Tables Dictionary |
+
+**Total Time to Shortlist**: ~25 minutes
+
+**Final Deliverable**: Enhanced ERD with 17 tables optimized for customer analytics (Q1-Q7)
