@@ -1,5 +1,7 @@
 This document provides a **complete step-by-step guide** for anyone new to the AdventureWorks database or customer analytics projects. It shows you exactly how tables were identified, selected, and organized into the final Entity-Relationship Diagram (ERD) used to answer 7 key customer analytics questions.
 
+---
+
 📅 Document Created: May 2026 👤 Author: Azab Basha
 🏢 Project: AdventureWorks End-to-End Customer Analytics
 📂 Phase: Phase 2 – Table Selection Methodology
