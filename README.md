@@ -33,8 +33,15 @@ Documentation, architecture diagrams, dashboards, and detailed walkthroughs will
 - Full project documentation
 
 ## Author
-- Azab Basha 
-- May-2026
+
+### Amr Basha
+Microsoft Certified Data Analyst | Power BI Developer | Customer Analytics Enthusiast
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-blue?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/azab-basha-552912289?utm_source=share_via&utm_content=profile&utm_medium=member_android)
+
+[![GitHub](https://img.shields.io/badge/GitHub-Profile-black?logo=github&logoColor=white)](https://github.com/Azab-Basha)
+
+[![Microsoft Certification](https://img.shields.io/badge/Microsoft-PL--300%20Certified-0078D4?logo=microsoft&logoColor=white)](https://learn.microsoft.com/en-us/users/azabbasha-6771/credentials/9eade87e2384b4fe)
 
 ---
 > This repository will be continuously updated as the project progresses.
