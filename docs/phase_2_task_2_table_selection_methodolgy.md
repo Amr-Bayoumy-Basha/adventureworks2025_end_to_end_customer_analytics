@@ -5,7 +5,7 @@ This document provides a **complete step-by-step guide** for anyone new to the A
 **📅 Document Created**: May 2026 
 **👤 Author**: Azab Basha  
 **🏢 Project**: AdventureWorks End-to-End Customer Analytics  
-**📂 Phase**:  Phase: Phase 2 – Table Selection Methodology
+**📂 Phase**: Phase 1 – Business Understanding
 
 ---
 
