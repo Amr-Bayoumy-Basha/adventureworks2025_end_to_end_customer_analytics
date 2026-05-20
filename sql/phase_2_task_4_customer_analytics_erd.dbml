@@ -1,1 +1,286 @@
 
+// Focused AdventureWorks ERD for customer analytics - Q1-Q7 ONLY
+
+// =============================
+// DIMENSIONS / HUB TABLES
+// =============================
+
+Table Sales_Customer {
+  CustomerID int [pk, not null]
+  PersonID int
+  StoreID int
+  TerritoryID int
+  AccountNumber varchar(10) [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Customer master. One row per customer. Links to Person and SalesTerritory; drives customer-level RFM/CLV.'
+}
+
+Table Person_Person {
+  BusinessEntityID int [pk, not null]
+  PersonType nchar(2) [not null]
+  NameStyle bit [not null]
+  Title nvarchar(8)
+  FirstName nvarchar(50) [not null]
+  MiddleName nvarchar(50)
+  LastName nvarchar(50) [not null]
+  Suffix nvarchar(10)
+  EmailPromotion int [not null]
+  AdditionalContactInfo xml
+  Demographics xml
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Person/demographic dimension. Used to enrich customer entity.'
+}
+
+Table Person_EmailAddress {
+  BusinessEntityID int [not null]
+  EmailAddressID int [pk, not null]
+  EmailAddress nvarchar(50)
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Customer email/contact details. For targeting and campaign eligibility.'
+}
+
+Table Person_Address {
+  AddressID int [pk, not null]
+  AddressLine1 nvarchar(60) [not null]
+  AddressLine2 nvarchar(60)
+  City nvarchar(30) [not null]
+  StateProvinceID int [not null]
+  PostalCode nvarchar(15) [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Physical address dimension. Used for geographic analysis and billing/shipping context.'
+}
+
+Table Person_StateProvince {
+  StateProvinceID int [pk, not null]
+  StateProvinceCode nchar(3) [not null]
+  CountryRegionCode nvarchar(3) [not null]
+  IsOnlyStateProvinceFlag bit [not null]
+  Name nvarchar(50) [not null]
+  TerritoryID int [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'State/Province dimension. Links addresses to territories.'
+}
+
+Table Sales_SalesTerritory {
+  TerritoryID int [pk, not null]
+  Name nvarchar(50) [not null]
+  CountryRegionCode nvarchar(3) [not null]
+  "Group" nvarchar(50) [not null]
+  SalesYTD money [not null]
+  SalesLastYear money [not null]
+  CostYTD money [not null]
+  CostLastYear money [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Territory/region dimension. For regional CLV, revenue concentration, and segmentation.'
+}
+
+Table Person_BusinessEntityAddress {
+  BusinessEntityID int [not null]
+  AddressID int [not null]
+  AddressTypeID int [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Bridge between BusinessEntity (Person/Store) and Address. Many-to-many.'
+}
+
+Table Person_AddressType {
+  AddressTypeID int [pk, not null]
+  Name nvarchar(50) [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Address type lookup: Billing, Shipping, Home, etc.'
+}
+
+Table Production_Product {
+  ProductID int [pk, not null]
+  Name nvarchar(50) [not null]
+  ProductNumber nvarchar(25) [not null]
+  MakeFlag bit [not null]
+  FinishedGoodsFlag bit [not null]
+  Color nvarchar(15)
+  SafetyStockLevel smallint [not null]
+  ReorderPoint smallint [not null]
+  StandardCost money [not null]
+  ListPrice money [not null]
+  Size nvarchar(5)
+  SizeUnitMeasureCode nchar(3)
+  WeightUnitMeasureCode nchar(3)
+  Weight decimal(8,2)
+  DaysToManufacture int [not null]
+  ProductLine nchar(2)
+  Class nchar(2)
+  Style nchar(2)
+  ProductSubcategoryID int
+  ProductModelID int
+  SellStartDate datetime [not null]
+  SellEndDate datetime
+  DiscontinuedDate datetime
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Product dimension. Grain: ProductID. For product performance, mix, and affinity.'
+}
+
+Table Production_ProductSubcategory {
+  ProductSubcategoryID int [pk, not null]
+  ProductCategoryID int [not null]
+  Name nvarchar(50) [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Product subcategory dimension.'
+}
+
+Table Production_ProductCategory {
+  ProductCategoryID int [pk, not null]
+  Name nvarchar(50) [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Top-level product category dimension.'
+}
+
+// =============================
+// FACT / TRANSACTION TABLES
+// =============================
+
+Table Sales_SalesOrderHeader {
+  SalesOrderID int [pk, not null]
+  RevisionNumber tinyint [not null]
+  OrderDate datetime [not null, note: 'Core date for RFM recency, cohorts, trends']
+  DueDate datetime [not null]
+  ShipDate datetime
+  Status tinyint [not null]
+  OnlineOrderFlag bit [not null]
+  SalesOrderNumber nvarchar(25) [not null]
+  PurchaseOrderNumber nvarchar(25)
+  AccountNumber nvarchar(15)
+  CustomerID int [not null]
+  SalesPersonID int
+  TerritoryID int
+  BillToAddressID int [not null]
+  ShipToAddressID int [not null]
+  ShipMethodID int [not null]
+  CreditCardID int
+  CreditCardApprovalCode varchar(15)
+  CurrencyRateID int
+  SubTotal money [not null]
+  TaxAmt money [not null]
+  Freight money [not null]
+  TotalDue money [not null, note: 'Total order value; primary input for monetary/CLV/CBCV']
+  Comment nvarchar(128)
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Order-level fact. Grain: one row per SalesOrderID.'
+}
+
+Table Sales_SalesOrderDetail {
+  SalesOrderID int [not null]
+  SalesOrderDetailID int [pk, not null]
+  CarrierTrackingNumber nvarchar(25)
+  OrderQty smallint [not null, note: 'Quantity for basket size and frequency']
+  ProductID int [not null]
+  SpecialOfferID int [not null]
+  UnitPrice money [not null]
+  UnitPriceDiscount money [not null]
+  LineTotal numeric(38,6) [not null, note: 'Line item revenue']
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Line-item fact. Grain: one row per SalesOrderDetailID.'
+}
+
+// =============================
+// PROMOTIONS & REASONS
+// =============================
+
+Table Sales_SpecialOffer {
+  SpecialOfferID int [pk, not null]
+  Description nvarchar(255) [not null]
+  DiscountPct smallmoney [not null]
+  Type nvarchar(50) [not null]
+  Category nvarchar(50) [not null]
+  StartDate datetime [not null]
+  EndDate datetime [not null]
+  MinQty int [not null]
+  MaxQty int
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Promotion/discount metadata. For promotion effectiveness and experiments.'
+}
+
+Table Sales_SpecialOfferProduct {
+  SpecialOfferID int [not null]
+  ProductID int [not null]
+  rowguid uniqueidentifier [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'REQUIRED BRIDGE: Links offers to products. Composite PK: SpecialOfferID + ProductID.'
+}
+
+Table Sales_SalesOrderHeaderSalesReason {
+  SalesOrderID int [not null]
+  SalesReasonID int [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Bridge table between SalesOrderHeader and SalesReason (many-to-many).'
+}
+
+Table Sales_SalesReason {
+  SalesReasonID int [pk, not null]
+  Name nvarchar(50) [not null]
+  ReasonType nvarchar(50) [not null]
+  ModifiedDate datetime [not null]
+
+  Note: 'Reasons/motivations for purchases. Useful for behavior-driven segmentation.'
+}
+
+// =============================
+// RELATIONSHIPS - FIXED
+// =============================
+
+Ref: Sales_Customer.PersonID > Person_Person.BusinessEntityID
+Ref: Sales_Customer.TerritoryID > Sales_SalesTerritory.TerritoryID
+
+Ref: Person_EmailAddress.BusinessEntityID > Person_Person.BusinessEntityID
+
+Ref: Person_BusinessEntityAddress.BusinessEntityID > Person_Person.BusinessEntityID
+Ref: Person_BusinessEntityAddress.AddressID > Person_Address.AddressID
+Ref: Person_BusinessEntityAddress.AddressTypeID > Person_AddressType.AddressTypeID
+Ref: Person_Address.StateProvinceID > Person_StateProvince.StateProvinceID
+Ref: Person_StateProvince.TerritoryID > Sales_SalesTerritory.TerritoryID
+
+Ref: Sales_SalesOrderHeader.CustomerID > Sales_Customer.CustomerID
+Ref: Sales_SalesOrderHeader.TerritoryID > Sales_SalesTerritory.TerritoryID
+Ref: Sales_SalesOrderHeader.BillToAddressID > Person_Address.AddressID
+Ref: Sales_SalesOrderHeader.ShipToAddressID > Person_Address.AddressID
+
+Ref: Sales_SalesOrderDetail.SalesOrderID > Sales_SalesOrderHeader.SalesOrderID
+
+// FIXED: Promotion relationship through bridge
+Ref: Sales_SalesOrderDetail.ProductID > Sales_SpecialOfferProduct.ProductID
+Ref: Sales_SalesOrderDetail.SpecialOfferID > Sales_SpecialOfferProduct.SpecialOfferID
+Ref: Sales_SpecialOfferProduct.ProductID > Production_Product.ProductID
+Ref: Sales_SpecialOfferProduct.SpecialOfferID > Sales_SpecialOffer.SpecialOfferID
+
+Ref: Production_Product.ProductSubcategoryID > Production_ProductSubcategory.ProductSubcategoryID
+Ref: Production_ProductSubcategory.ProductCategoryID > Production_ProductCategory.ProductCategoryID
+
+Ref: Sales_SalesOrderHeaderSalesReason.SalesOrderID > Sales_SalesOrderHeader.SalesOrderID
+Ref: Sales_SalesOrderHeaderSalesReason.SalesReasonID > Sales_SalesReason.SalesReasonID
