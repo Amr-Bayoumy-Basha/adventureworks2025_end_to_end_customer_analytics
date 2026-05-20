@@ -11,6 +11,10 @@
 ![Cohort Analysis](https://img.shields.io/badge/Cohort-Analysis-success)
 ![Pareto Analysis](https://img.shields.io/badge/Pareto-80%2F20%20Rule-critical)
 
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![Power BI](https://img.shields.io/badge/Power%20BI-F2C811?logo=powerbi&logoColor=black)
+![DAX](https://img.shields.io/badge/DAX-Advanced-orange)
+![PL--300](https://img.shields.io/badge/PL--300-Certified-success)
 
 Customer-centric end-to-end analytics project using AdventureWorks2025 OLTP Database — covering OLTP exploration, dimensional modeling, SQL transformations, Power BI dashboards, DAX KPIs, and Python-driven predictive analytics. Currently under active development and continuous expansion.
 
