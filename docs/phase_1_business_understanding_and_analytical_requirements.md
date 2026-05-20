@@ -691,14 +691,9 @@ This structure aligns visualization design with the project's customer-centric a
 ---
 
 ## 📚 Related Documentation
-
-- **[Data Dictionary](./adventureworks-customer-analytics-data-dictionary.md)** - Complete 17-table reference
-- **[Table Selection Methodology](./table-selection-methodology.md)** - How tables were chosen
-- **[ERD Diagram (DBML)](./erd-customer-analytics-enhanced.dbml)** - Visual entity-relationship diagram
-
 ---
 
-**📅 Document Created**: Feb 2026 Updated on 16-May-2026
+**📅 Document Created**: May 2026 
 **👤 Author**: Azab Basha  
 **🏢 Project**: AdventureWorks End-to-End Customer Analytics  
 **📂 Phase**: Phase 1 – Business Understanding
