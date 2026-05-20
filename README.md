@@ -1,6 +1,6 @@
 # adventureworks2025_end_to_end_customer_analytics
 
-![SQL](https://img.shields.io/badge/SQL-Database-blue?logo=sqlserver&logoColor=white)
+![SQL](https://img.shields.io/badge/SQL-Language-blue)
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-Microsoft-red?logo=microsoftsqlserver&logoColor=white)
 ![DBML](https://img.shields.io/badge/DBML-Data%20Modeling-orange)
 ![SSIS](https://img.shields.io/badge/SSIS-ETL-purple)
@@ -10,6 +10,8 @@
 ![BYTD](https://img.shields.io/badge/BYTD-Behavioral%20Analytics-blueviolet)
 ![Cohort Analysis](https://img.shields.io/badge/Cohort-Analysis-success)
 ![Pareto Analysis](https://img.shields.io/badge/Pareto-80%2F20%20Rule-critical)
+
+
 Customer-centric end-to-end analytics project using AdventureWorks2025 OLTP Database — covering OLTP exploration, dimensional modeling, SQL transformations, Power BI dashboards, DAX KPIs, and Python-driven predictive analytics. Currently under active development and continuous expansion.
 
 ## Project Scope
