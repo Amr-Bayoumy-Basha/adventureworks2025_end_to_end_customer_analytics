@@ -1,6 +1,6 @@
 # adventureworks2025_end_to_end_customer_analytics
 
-![SQL](https://img.shields.io/badge/SQL-Database-blue?logo=postgresql&logoColor=white)
+![SQL](https://img.shields.io/badge/SQL-Database-blue?logo=sqlserver&logoColor=white)
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-Microsoft-red?logo=microsoftsqlserver&logoColor=white)
 ![DBML](https://img.shields.io/badge/DBML-Data%20Modeling-orange)
 ![SSIS](https://img.shields.io/badge/SSIS-ETL-purple)
