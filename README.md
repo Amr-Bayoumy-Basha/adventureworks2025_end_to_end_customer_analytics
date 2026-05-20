@@ -33,8 +33,8 @@ Documentation, architecture diagrams, dashboards, and detailed walkthroughs will
 - Full project documentation
 
 ## Author
-Azab Basha 
-May-2026
+- Azab Basha 
+- May-2026
 
 ---
 > This repository will be continuously updated as the project progresses.
