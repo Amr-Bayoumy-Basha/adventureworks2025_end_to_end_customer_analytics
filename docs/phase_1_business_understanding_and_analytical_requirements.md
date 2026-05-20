@@ -5,6 +5,13 @@
 
 ---
 
+**📅 Document Created**: May 2026 
+**👤 Author**: Azab Basha  
+**🏢 Project**: AdventureWorks End-to-End Customer Analytics  
+**📂 Phase**: Phase 1 – Business Understanding
+
+---
+
 ### 🎯 Task Objective
 
 This task establishes customer-centric success metrics that:
@@ -691,12 +698,9 @@ This structure aligns visualization design with the project's customer-centric a
 ---
 
 ## 📚 Related Documentation
----
-
-**📅 Document Created**: May 2026 
-**👤 Author**: Azab Basha  
-**🏢 Project**: AdventureWorks End-to-End Customer Analytics  
-**📂 Phase**: Phase 1 – Business Understanding
+- **[Data Dictionary](./phase_2_task_3_customer_analytics_data_dictionary.md)** - Complete 17-table reference
+- **[Table Selection Methodology](./phase_2_task_2_table_selection_methodolgy.md)** - How tables were chosen
+- **[ERD Diagram (DBML)](./phase_2_task_4_customer_analytics_erd.dbml)** - Visual entity-relationship diagram
 
 ---
 
