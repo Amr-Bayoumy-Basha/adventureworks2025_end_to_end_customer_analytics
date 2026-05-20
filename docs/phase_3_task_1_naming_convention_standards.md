@@ -5,6 +5,14 @@ This document outlines the naming conventions used for schemas, tables, views, c
 
 ---
 
+**📅 Document Created**: May 2026 
+**👤 Author**: Azab Basha  
+**🏢 Project**: AdventureWorks End-to-End Customer Analytics  
+**📂 Phase**: Phase 3 Task 1 Naming Convention Standards
+
+
+---
+
 ## 📋 Table of Contents
 
 - [General Principles](#-general-principles)  
