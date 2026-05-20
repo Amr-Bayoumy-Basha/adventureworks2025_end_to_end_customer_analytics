@@ -5,6 +5,14 @@
 
 ---
 
+**📅 Document Created**: May 2026 
+**👤 Author**: Azab Basha  
+**🏢 Project**: AdventureWorks End-to-End Customer Analytics  
+**📂 Phase**: Phase 2 Task 3 Customer Analytics Data Dictionary
+
+
+---
+
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
@@ -581,13 +589,9 @@ ORDER BY SchemaName, TableName, c.column_id;
 ---
 
 ## 📚 Related Documentation
->> to be done
----
-
-**📅 Last Updated**: May 2026  
-**👤 Author**: Azab Basha  
-**🏢 Project**: AdventureWorks End-to-End Customer Analytics
-
+- **[Table Selection Methodology](./table-selection-methodology.md)** - How these 17 tables were chosen
+- **[ERD Diagram (DBML)](./phase_2_task_4_customer_analytics_erd.dbml)** - Visual entity-relationship diagram
+- **[Metadata Exploration Scripts](../`phase_2_task_1_metadata_explorqtion.sql`)** - Complete discovery queries
 ---
 
 **🎯 Ready to use this as your single source of truth for:**
