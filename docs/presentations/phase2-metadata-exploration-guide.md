@@ -250,8 +250,8 @@ Schema Domain Map (sorted by table density)
   Production  ████████████████████████  25 tables  ← Product catalog
   Person      █████████████            13 tables  ← Customer context
   Sales       ███████████████████      19 tables  ← ★ PRIMARY FOCUS ★
-  HumanResources ████████              8 tables   ← Employee data
-  Purchasing  ████████                 8 tables   ← Vendor/supply
+  HumanResources ████████              6 tables   ← Employee data
+  Purchasing  ████████                 5 tables   ← Vendor/supply
   dbo         ██                       2 tables   ← Utility tables
 
 ══════════════════════════════════════════════
