@@ -255,7 +255,7 @@ Schema Domain Map (sorted by table density)
   dbo         ██                       2 tables   ← Utility tables
 
 ══════════════════════════════════════════════
-  TOTAL: 75 tables across 6 business domains
+  TOTAL: 72 tables across 6 business domains
 ```
 
 ### Strategic Insight
