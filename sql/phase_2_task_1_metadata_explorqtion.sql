@@ -17,7 +17,7 @@ WORKFLOW - 4 PHASES:
 3. Integration (Q7): Unified metadata dashboard
 4. Documentation (Q8-Q11): Structural finalization & dictionary generation
 
-TARGET: SQL Server (AdventureWorks 2025) | AUTHOR: Azab Basha | DATE: May 2026
+TARGET: SQL Server (AdventureWorks 2025) | AUTHOR: Amr Bayomei Basha | DATE: May 2026
 */
 
 --------------------------------------------------------------------------------
