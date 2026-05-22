@@ -1757,4 +1757,4 @@ LONG-TERM (next quarter):
 ---
 
 *Generated for: AdventureWorks 2025 End-to-End Customer Analytics Project*
-*Author: Azab Basha | Phase 2 Task 1 | May 2026*
+*Author: Amr Bayomei Basha | Phase 2 Task 1 | May 2026*
