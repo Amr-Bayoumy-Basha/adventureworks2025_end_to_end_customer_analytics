@@ -6,7 +6,7 @@
 ---
 
 **📅 Document Created**: May 2026 
-**👤 Author**: Azab Basha  
+**👤 Author**: Amr Bayomei Basha  
 **🏢 Project**: AdventureWorks End-to-End Customer Analytics  
 **📂 Phase**: Phase 2 Task 3 Customer Analytics Data Dictionary
 
