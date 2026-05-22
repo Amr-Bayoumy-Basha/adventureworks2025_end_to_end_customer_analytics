@@ -143,6 +143,7 @@ Before diving into table selection, we defined **7 core questions** that drive a
 | Person | Address | 58,842 | 2.99 | Location | 5 |
 | Person | EmailAddress | 19,972 | 2.07 | Location | 5 |
 | Person | BusinessEntityAddress | 19,614 | 0.95 | Location | 5 |
+| Person | StateProvince | 181 | Location | 5
 | Person | AddressType | 6 | 0.07 | Location | 5 |
 
 **Key Takeaway**: These are your **candidate tables**. Next, you'll validate their relationships and roles.
