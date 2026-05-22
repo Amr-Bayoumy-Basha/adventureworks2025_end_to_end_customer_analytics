@@ -74,12 +74,15 @@ SELECT
         WHEN t.name LIKE '%Person%' THEN 'Person'
         WHEN t.name LIKE '%Order%' OR t.name LIKE '%Sales%' THEN 'Transaction'
         WHEN t.name LIKE '%Product%' THEN 'Product'
-        WHEN t.name LIKE '%Address%' THEN 'Location'
+        WHEN t.name LIKE '%Address%' OR t.name LIKE '%State%' THEN 'Location'
         ELSE 'Other'
     END AS AnalyticsCategory,
     CASE 
         WHEN t.name LIKE '%Customer%' THEN 1
-        WHEN t.name LIKE '%Order%' OR t.name LIKE '%Sales%' THEN 2
+        WHEN t.name LIKE '%Person%' THEN 2
+        WHEN t.name LIKE '%Order%' OR t.name LIKE '%Sales%' THEN 3
+        WHEN t.name LIKE '%Product%' THEN 4
+        WHEN t.name LIKE '%Address%' OR t.name LIKE '%State%' THEN 5
         ELSE 99
     END AS Priority
 FROM sys.tables AS t
@@ -87,7 +90,8 @@ JOIN sys.partitions AS p ON t.object_id = p.object_id
 JOIN sys.allocation_units AS a ON p.partition_id = a.container_id
 WHERE p.index_id IN (0,1)
     AND (t.name LIKE '%Customer%' OR t.name LIKE '%Person%' OR t.name LIKE '%Order%'
-         OR t.name LIKE '%Sales%' OR t.name LIKE '%Product%' OR t.name LIKE '%Address%')
+         OR t.name LIKE '%Sales%' OR t.name LIKE '%Product%' OR t.name LIKE '%Address%' 
+         OR t.name LIKE '%State%')
 GROUP BY t.schema_id, t.name
 ORDER BY Priority, TotalRows DESC;
 
