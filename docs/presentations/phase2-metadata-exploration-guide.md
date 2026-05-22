@@ -25,7 +25,7 @@
 ║   Building an Analytical Intelligence Layer                 ║
 ║   on AdventureWorks 2025                                    ║
 ║                                                              ║
-║   Author  : Azab Basha                                      ║
+║   Author  : Amr Bayomei Basha                                      ║
 ║   Date    : May 2026                                        ║
 ║   Database: SQL Server — AdventureWorks 2025                ║
 ║   Phase   : 2 of 4 (Table Selection & ERD Design)           ║
