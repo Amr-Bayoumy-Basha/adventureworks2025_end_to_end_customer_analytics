@@ -44,7 +44,7 @@
 
 ### The Problem Every Analyst Faces
 
-> You open a new database. It has **71 tables**. Where do you start?
+> You open a new database. It has **72 tables**. Where do you start?
 
 Most analysts do this:
 - ❌ Open the table list and click randomly
@@ -252,10 +252,10 @@ Schema Domain Map (sorted by table density)
   Sales       ███████████████████      19 tables  ← ★ PRIMARY FOCUS ★
   HumanResources ████████              6 tables   ← Employee data
   Purchasing  ████████                 5 tables   ← Vendor/supply
-  dbo         ██                       2 tables   ← Utility tables
+  dbo         ██                       4 tables   ← Utility tables
 
 ══════════════════════════════════════════════
-  TOTAL: 72 tables across 6 business domains
+  TOTAL: 72 tables 68 across 5 business domains and 4 dbo as system and metadata tables
 ```
 
 ### Strategic Insight
@@ -402,13 +402,14 @@ ORDER BY Priority, TotalRows DESC;
 ```
 Table Name          Pattern Matched        Category Assigned
 ─────────────────────────────────────────────────────────────
-Customer          → LIKE '%Customer%'   → 'Customer'     (P1)
-SalesOrderHeader  → LIKE '%Order%'      → 'Transaction'  (P2)
-SalesOrderDetail  → LIKE '%Sales%'      → 'Transaction'  (P2)
-Product           → LIKE '%Product%'   → 'Product'      (P99)
-Person            → LIKE '%Person%'    → 'Person'        (P99)
-Address           → LIKE '%Address%'   → 'Location'      (P99)
-StateProvince     → (no match)         → filtered out
+Customer          → LIKE '%Customer%'  → 'Customer'      (P1)
+Person            → LIKE '%Person%'    → 'Person'        (P2)
+SalesOrderHeader  → LIKE '%Order%'     → 'Transaction'   (P3)
+SalesOrderDetail  → LIKE '%Sales%'     → 'Transaction'   (P3)
+Product           → LIKE '%Product%'   → 'Product'       (P4)
+Address           → LIKE '%Address%'   → 'Location'      (P5)
+StateProvince     → LIKE '%State%'     → 'location'      (P5)
+Employee          → (no match)         → filtered out    (P99)
 ```
 
 ### Analytics Category Classification
@@ -469,7 +470,7 @@ StateProvince     → (no match)         → filtered out
 BEFORE Phase 1 Discovery:
 ────────────────────────────────────────────────
   "I'll just look at the table list and guess..."
-   75 tables... which one is customer data?
+   72 tables... which one is customer data?
    Is it Customer? Person? SalesPerson?
    → Hours wasted, wrong tables selected
 
@@ -502,9 +503,8 @@ AFTER Phase 1 Discovery (10 minutes):
 ║                                                              ║
 ║  You now know:                                              ║
 ║                                                              ║
-║  1. THE LANDSCAPE  — 6 schemas, 75 tables                  ║
-║  2. THE VOLUMES    — Facts (100K+) vs Dims (<1K)           ║
-║  3. THE CANDIDATES — 17 customer analytics tables          ║
+║  1. THE LANDSCAPE  — 6 schemas, 72 tables                  ║
+║  2. THE CANDIDATES — 17 customer analytics tables          ║
 ║                                                              ║
 ║  Time Spent: ~10 minutes                                    ║
 ║  Value Gained: Weeks of wrong-path prevention               ║
