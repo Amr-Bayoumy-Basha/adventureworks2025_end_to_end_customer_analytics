@@ -105,46 +105,46 @@ Before diving into table selection, we defined **7 core questions** that drive a
 
 **Actual Results**:
 
-| SchemaName | TableName | TotalRows | TotalSizeMB | AnalyticsCategory | CategoryPriority |
-|------------|-----------|-----------|-------------|-------------------|------------------|
-| Sales | Customer | 19,820 | 1.07 | Customer | 1 |
-| Sales | SalesOrderDetail | 121,317 | 10.10 | Transaction | 2 |
-| Production | WorkOrder | 72,591 | 4.35 | Transaction | 2 |
-| Production | WorkOrderRouting | 67,131 | 5.79 | Transaction | 2 |
-| Sales | SalesOrderHeader | 31,465 | 5.73 | Transaction | 2 |
-| Sales | SalesOrderHeaderSalesReason | 27,647 | 0.76 | Transaction | 2 |
-| Purchasing | PurchaseOrderDetail | 8,845 | 0.57 | Transaction | 2 |
-| Purchasing | PurchaseOrderHeader | 4,012 | 0.45 | Transaction | 2 |
-| Sales | SalesPersonQuotaHistory | 163 | 0.20 | Person | 2 |
-| Sales | SalesTaxRate | 29 | 0.07 | Transaction | 2 |
-| Sales | SalesPerson | 17 | 0.07 | Person | 2 |
-| Sales | SalesTerritoryHistory | 17 | 0.07 | Transaction | 2 |
-| Sales | SalesTerritory | 10 | 0.07 | Transaction | 2 |
-| Sales | SalesReason | 10 | 0.07 | Transaction | 2 |
-| Person | Person | 59,916 | 30.55 | Person | 3 |
-| Person | PersonPhone | 19,972 | 1.26 | Person | 3 |
-| Sales | PersonCreditCard | 19,118 | 0.57 | Person | 3 |
-| Production | ProductInventory | 1,069 | 0.20 | Product | 4 |
-| Production | ProductDescription | 762 | 0.26 | Product | 4 |
-| Production | ProductModelProductDescriptionCulture | 762 | 0.20 | Product | 4 |
-| Sales | SpecialOfferProduct | 538 | 0.20 | Product | 4 |
-| Production | ProductProductPhoto | 504 | 0.07 | Product | 4 |
-| Production | Product | 504 | 0.26 | Product | 4 |
-| Purchasing | ProductVendor | 460 | 0.20 | Product | 4 |
-| Production | ProductCostHistory | 395 | 0.20 | Product | 4 |
-| Production | ProductListPriceHistory | 395 | 0.20 | Product | 4 |
-| Production | ProductModel | 384 | 0.33 | Product | 4 |
-| Production | ProductPhoto | 303 | 2.52 | Product | 4 |
-| Production | ProductSubcategory | 37 | 0.07 | Product | 4 |
-| Production | ProductDocument | 32 | 0.07 | Product | 4 |
-| Production | ProductModelIllustration | 7 | 0.07 | Product | 4 |
-| Production | ProductCategory | 4 | 0.07 | Product | 4 |
-| Production | ProductReview | 4 | 0.20 | Product | 4 |
-| Person | Address | 58,842 | 2.99 | Location | 5 |
-| Person | EmailAddress | 19,972 | 2.07 | Location | 5 |
-| Person | BusinessEntityAddress | 19,614 | 0.95 | Location | 5 |
-| Person | StateProvince | 181 | Location | 5
-| Person | AddressType | 6 | 0.07 | Location | 5 |
+| SchemaName | TableName | TotalRows | AnalyticsCategory | CategoryPriority |
+|------------|-----------|-----------|-------------------|------------------|
+| Sales | Customer | 19,820 | Customer | 1 |
+| Sales | SalesOrderDetail | 121,317 | Transaction | 2 |
+| Production | WorkOrder | 72,591 | Transaction | 2 |
+| Production | WorkOrderRouting | 67,131 | Transaction | 2 |
+| Sales | SalesOrderHeader | 31,465 | Transaction | 2 |
+| Sales | SalesOrderHeaderSalesReason | 27,647 | Transaction | 2 |
+| Purchasing | PurchaseOrderDetail | 8,845 | Transaction | 2 |
+| Purchasing | PurchaseOrderHeader | 4,012 | Transaction | 2 |
+| Sales | SalesPersonQuotaHistory | 163 | Person | 2 |
+| Sales | SalesTaxRate | 29 | Transaction | 2 |
+| Sales | SalesPerson | 17 | Person | 2 |
+| Sales | SalesTerritoryHistory | 17 | Transaction | 2 |
+| Sales | SalesTerritory | 10 | Transaction | 2 |
+| Sales | SalesReason | 10 | Transaction | 2 |
+| Person | Person | 59,916 | Person | 3 |
+| Person | PersonPhone | 19,972 | Person | 3 |
+| Sales | PersonCreditCard | 19,118 | Person | 3 |
+| Production | ProductInventory | 1,069 | Product | 4 |
+| Production | ProductDescription | 762 | Product | 4 |
+| Production | ProductModelProductDescriptionCulture | 762 | Product | 4 |
+| Sales | SpecialOfferProduct | 538 | Product | 4 |
+| Production | ProductProductPhoto | 504 | Product | 4 |
+| Production | Product | 504 | Product | 4 |
+| Purchasing | ProductVendor | 460 | Product | 4 |
+| Production | ProductCostHistory | 395 | Product | 4 |
+| Production | ProductListPriceHistory | 395 | Product | 4 |
+| Production | ProductModel | 384 | Product | 4 |
+| Production | ProductPhoto | 303 | Product | 4 |
+| Production | ProductSubcategory | 37 | Product | 4 |
+| Production | ProductDocument | 32 | Product | 4 |
+| Production | ProductModelIllustration | 7 | Product | 4 |
+| Production | ProductCategory | 4 | Product | 4 |
+| Production | ProductReview | 4 | Product | 4 |
+| Person | Address | 58,842 | Location | 5 |
+| Person | EmailAddress | 19,972 | Location | 5 |
+| Person | BusinessEntityAddress | 19,614 | Location | 5 |
+| Person | StateProvince | 181 | Location | 5 |
+| Person | AddressType | 6 | Location | 5 |
 
 **Key Takeaway**: These are your **candidate tables**. Next, you'll validate their relationships and roles.
 
