@@ -60,12 +60,14 @@ GO
 PRINT 'Done. Your DataWarehouse database with bronze/silver/gold schemas is ready.';
 
 
--- STUDY NOTE:
--- Schemas are checked using sys.schemas (or SCHEMA_ID()) instead of OBJECT_ID()
--- because schemas are stored as metadata objects, not regular schema-scoped objects
--- like tables or views. OBJECT_ID(...,'S') is not intended for schema validation.
+/*
+STUDY NOTE 1:
+Schemas are checked using sys.schemas (or SCHEMA_ID()) instead of OBJECT_ID()
+because schemas are stored as metadata objects, not regular schema-scoped objects
+like tables or views. OBJECT_ID(...,'S') is not intended for schema validation.
 
--- NOTE:
--- CREATE SCHEMA is executed using dynamic SQL through EXEC()
--- to avoid SQL Server batch parsing/compilation restrictions with certain DDL statements.
--- EXEC() delays execution until runtime, making conditional deployment scripts safer and reusable.
+STUDY NOTE 2:
+CREATE SCHEMA is executed using dynamic SQL through EXEC()
+to avoid SQL Server batch parsing/compilation restrictions with certain DDL statements.
+EXEC() delays execution until runtime, making conditional deployment scripts safer and reusable.
+*/
