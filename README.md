@@ -61,4 +61,12 @@ Microsoft Certified Data Analyst | Power BI Developer | Customer Analytics Enthu
 [![Microsoft Certification](https://img.shields.io/badge/Microsoft-PL--300%20Certified-0078D4?logo=microsoft&logoColor=white)](https://learn.microsoft.com/en-us/users/azabbasha-6771/credentials/9eade87e2384b4fe)
 
 ---
+
+The bronze SSIS pipeline uses a metadata-driven architecture.
+A control table (etl_bronze_table_mapping) stores source-to-destination mappings,
+while a reusable stored procedure dynamically loads tables into the bronze layer.
+SSIS iterates through the mapping table and executes the generic loader procedure,
+allowing scalable and reusable ingestion logic.
+
+---
 > This repository will be continuously updated as the project progresses.
