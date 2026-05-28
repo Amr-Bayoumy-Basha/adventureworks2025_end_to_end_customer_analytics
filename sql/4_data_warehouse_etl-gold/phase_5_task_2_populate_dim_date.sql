@@ -3,6 +3,9 @@ Gold Layer - Populate Dim_Date
 =================================================================================
 Purpose: Generate date dimension data from 2010 to 2030
 Includes: Calendar attributes, fiscal year, holidays
+
+TARGET: SQL Server (AdventureWorks2025_CustomerDW) | AUTHOR: Amr Bayomei Basha | DATE: May 2026
+VERSION: 1.0
 =================================================================================
 */
 
