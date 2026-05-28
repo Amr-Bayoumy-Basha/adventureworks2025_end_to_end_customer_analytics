@@ -10,6 +10,11 @@ VERSION: 1.0
 =================================================================================
 */
 
+SET ANSI_NULLS ON; 
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
 
 USE AdventureWorks2025_CustomerDW;
 GO
