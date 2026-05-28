@@ -8,9 +8,10 @@ Features:
 3. Currency support (code + exchange rate)
 4. BTYD-ready RFM metrics
 5. NO foreign key constraints (for easier data loading)
+6. Pareto analysis columns on dim_customer (qty + revenue based)
 
 TARGET: SQL Server (AdventureWorks2025_CustomerDW) | AUTHOR: Amr Bayomei Basha | DATE: May 2026
-VERSION: 1.0
+VERSION: 1.1
 
 =================================================================================
 */
@@ -158,6 +159,15 @@ CREATE TABLE gold.dim_customer (
     total_orders            INT NULL DEFAULT 0,
     lifetime_value          DECIMAL(18,2) NULL DEFAULT 0,
     
+    -- Pareto analysis - Revenue based
+    -- Populated by ETL after fact_sales is loaded
+    revenue_cumulative      DECIMAL(18,2) NULL,         -- Running total of revenue (desc rank)
+    revenue_pareto_pct      DECIMAL(7,4) NULL,          -- Cumulative revenue % of grand total
+
+    -- Pareto analysis - Quantity based
+    qty_cumulative          BIGINT NULL,                -- Running total of qty (desc rank)
+    qty_pareto_pct          DECIMAL(7,4) NULL,          -- Cumulative qty % of grand total
+
     -- Status
     is_active               BIT NOT NULL DEFAULT 1,
     
@@ -171,8 +181,9 @@ CREATE TABLE gold.dim_customer (
 CREATE UNIQUE NONCLUSTERED INDEX ix_dim_customer_id ON gold.dim_customer(customer_id);
 CREATE NONCLUSTERED INDEX ix_dim_customer_territory ON gold.dim_customer(territory_key);
 CREATE NONCLUSTERED INDEX ix_dim_customer_person ON gold.dim_customer(person_id) WHERE person_id IS NOT NULL;
+CREATE NONCLUSTERED INDEX ix_dim_customer_pareto ON gold.dim_customer(revenue_pareto_pct, qty_pareto_pct);
 
-PRINT '✓ Dim_Customer created (SCD Type 1)';
+PRINT '✓ Dim_Customer created (SCD Type 1 + Pareto columns)';
 GO
 
 -- =================================================================================
@@ -266,11 +277,12 @@ CREATE TABLE gold.fact_sales (
     line_total              DECIMAL(18,2) NOT NULL,
     discount_amount         DECIMAL(18,2) NOT NULL DEFAULT 0,
     cost_amount             DECIMAL(18,2) NOT NULL DEFAULT 0,
-    profit_amount           DECIMAL(18,2) NOT NULL DEFAULT 0,
+    -- gross_profit = revenue (line_total) - COGS (cost_amount)
+    gross_profit            DECIMAL(18,2) NOT NULL DEFAULT 0,
     
     -- Base currency amounts (for cross-currency aggregation)
     line_total_base         AS (line_total * exchange_rate) PERSISTED,
-    profit_amount_base      AS (profit_amount * exchange_rate) PERSISTED,
+    gross_profit_base       AS (gross_profit * exchange_rate) PERSISTED,
     
     -- Order-level attributes
     subtotal                DECIMAL(18,2) NOT NULL,
@@ -294,7 +306,7 @@ CREATE NONCLUSTERED INDEX ix_fact_sales_order_date
 CREATE NONCLUSTERED INDEX ix_fact_sales_ship_date 
     ON gold.fact_sales(ship_date_key) INCLUDE (line_total) WHERE ship_date_key IS NOT NULL;
 CREATE NONCLUSTERED INDEX ix_fact_sales_customer 
-    ON gold.fact_sales(customer_key) INCLUDE (line_total);
+    ON gold.fact_sales(customer_key) INCLUDE (line_total, order_quantity, gross_profit);
 CREATE NONCLUSTERED INDEX ix_fact_sales_product 
     ON gold.fact_sales(product_key) INCLUDE (line_total, order_quantity);
 CREATE NONCLUSTERED INDEX ix_fact_sales_territory 
@@ -302,7 +314,7 @@ CREATE NONCLUSTERED INDEX ix_fact_sales_territory
 CREATE UNIQUE NONCLUSTERED INDEX ix_fact_sales_natural_key 
     ON gold.fact_sales(salesorder_id, salesorderdetail_id);
 
-PRINT '✓ Fact_Sales created (without FK constraints)';
+PRINT '✓ Fact_Sales created (gross_profit = revenue - COGS, no FK constraints)';
 GO
 
 -- =================================================================================
@@ -400,7 +412,8 @@ PRINT '  • SCD Type 1: Simple overwrites (no history)';
 PRINT '  • Role-playing dates: order/due/ship';
 PRINT '  • Currency: code + exchange rate + base amounts';
 PRINT '  • BTYD: recency, frequency, T, monetary_value';
+PRINT '  • Gross Profit = Revenue - COGS (standard_cost * qty)';
+PRINT '  • Pareto columns on dim_customer: revenue + qty based';
 PRINT '  • No FK constraints: Allows TRUNCATE and faster loads';
 PRINT '=================================================================================';
 GO
-
