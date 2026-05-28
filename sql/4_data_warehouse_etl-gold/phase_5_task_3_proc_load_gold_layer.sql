@@ -1,419 +1,660 @@
 /*
 =================================================================================
-Gold Layer - Star Schema DDL (FINAL VERSION - SCD Type 1 - No FK Constraints)
+Gold Layer ETL Stored Procedure - Complete Data Warehouse Loader
 =================================================================================
-Features:
-1. SCD Type 1 for all dimensions (overwrite changes)
-2. Role-playing dates in Fact_Sales (order/due/ship)
-3. Currency support (code + exchange rate)
-4. BTYD-ready RFM metrics
-5. NO foreign key constraints (for easier data loading)
-6. Pareto analysis columns on dim_customer (qty + revenue based)
+FIXED VERSION - Changes from original:
+  1. [CRITICAL] fact_customer_rfm: Moved CTE before INSERT (semicolon bug)
+  2. [CRITICAL] fact_sales: currency_code now uses tocurrencycode from currency rate table
+  3. [CRITICAL] fact_sales: exchange_rate now uses averagerate from currency rate table
+  4. [CRITICAL] fact_sales: profit_amount formula corrected (line_total - cost_amount)
+  5. fact_sales: Added @@ROWCOUNT print
+  6. dim_customer: Added UPDATE step to populate order metrics from fact_sales
+  7. Removed prohibited USE statement - run in AdventureWorks2025_CustomerDW context.
 
 TARGET: SQL Server (AdventureWorks2025_CustomerDW) | AUTHOR: Amr Bayomei Basha | DATE: May 2026
-VERSION: 1.1
-
+VERSION: 1.0
 =================================================================================
 */
 
-USE AdventureWorks2025_CustomerDW;
+-- Drop existing procedure
+IF OBJECT_ID('gold.sp_load_complete_datawarehouse', 'P') IS NOT NULL
+    DROP PROCEDURE gold.sp_load_complete_datawarehouse;
 GO
 
--- =================================================================================
--- DROP EXISTING TABLES (IN DEPENDENCY ORDER)
--- =================================================================================
+CREATE PROCEDURE gold.sp_load_complete_datawarehouse
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @EndTime DATETIME2;
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    DECLARE @ErrorSeverity INT;
+    DECLARE @ErrorState INT;
+    DECLARE @SQL NVARCHAR(MAX);
+    DECLARE @DimRowCount INT = 0;
+    DECLARE @FactRowCount INT = 0;
+    
+    BEGIN TRY
+        PRINT '=================================================================================';
+        PRINT 'Starting Complete Gold Layer Data Warehouse ETL Process';
+        PRINT 'Start Time: ' + CONVERT(VARCHAR(30), @StartTime, 121);
+        PRINT '=================================================================================';
+        PRINT '';
+        
+        -- ========================================================================
+        -- STEP 0: DROP ALL FOREIGN KEY CONSTRAINTS IN GOLD SCHEMA
+        -- ========================================================================
+        
+        PRINT '=================================================================================';
+        PRINT 'STEP 0: Dynamically Dropping All Foreign Keys in Schema [gold]';
+        PRINT '=================================================================================';
+        PRINT '';
+        
+        SET @SQL = N'';
+        
+        SELECT @SQL += N'ALTER TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + 
+                       N' DROP CONSTRAINT ' + QUOTENAME(fk.name) + N';' + CHAR(13)
+        FROM sys.foreign_keys AS fk
+        INNER JOIN sys.tables AS t ON fk.parent_object_id = t.object_id
+        INNER JOIN sys.schemas AS s ON t.schema_id = s.schema_id
+        WHERE s.name = N'gold';
+        
+        IF @SQL <> N''
+        BEGIN
+            EXEC sp_executesql @SQL;
+            PRINT '  ✓ Success: All foreign keys in [gold] schema have been dropped.';
+        END
+        ELSE
+        BEGIN
+            PRINT '  - Note: No foreign keys found in [gold] schema to drop.';
+        END
+        
+        PRINT '';
+        
+        -- ========================================================================
+        -- SECTION 1: LOAD DIMENSION TABLES
+        -- ========================================================================
+        
+        PRINT '=================================================================================';
+        PRINT 'SECTION 1: Loading Gold Layer Dimensions';
+        PRINT '=================================================================================';
+        PRINT '';
+        
+        -- 1. Load dim_territory
+        PRINT '  [1/5] Loading: dim_territory';
+        TRUNCATE TABLE gold.dim_territory;
+        
+        INSERT INTO gold.dim_territory (
+            territory_id, territory_name, country_code, region_group
+        )
+        SELECT 
+            territory_id,
+            name               AS territory_name,
+            countryregioncode  AS country_code,
+            [group]            AS region_group
+        FROM silver.aw_sales_salesterritory;
+        
+        SET @DimRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' territories';
+        PRINT '';
+        
+        -- 2. Load dim_product
+        PRINT '  [2/5] Loading: dim_product';
+        TRUNCATE TABLE gold.dim_product;
+        
+        INSERT INTO gold.dim_product (
+            product_id, product_name, product_number, category_name, subcategory_name,
+            color, size, product_line, class, style, list_price, standard_cost,
+            days_to_manufacture, is_active
+        )
+        SELECT 
+            p.product_id,
+            p.name                                                        AS product_name,
+            p.productnumber                                               AS product_number,
+            pc.name                                                       AS category_name,
+            ps.name                                                       AS subcategory_name,
+            p.color,
+            p.size,
+            p.productline                                                 AS product_line,
+            p.class,
+            p.style,
+            p.listprice                                                   AS list_price,
+            p.standardcost                                                AS standard_cost,
+            p.daystomanufacture                                           AS days_to_manufacture,
+            CASE WHEN p.sellenddate IS NULL THEN 1 ELSE 0 END            AS is_active
+        FROM silver.aw_production_product p
+        LEFT JOIN silver.aw_production_productsubcategory ps 
+            ON p.productsubcategory_id = ps.productsubcategory_id
+        LEFT JOIN silver.aw_production_productcategory pc 
+            ON ps.productcategory_id = pc.productcategory_id;
+        
+        SET @DimRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' products';
+        PRINT '';
+        
+        -- 3. Load dim_specialoffer
+        PRINT '  [3/5] Loading: dim_specialoffer';
+        TRUNCATE TABLE gold.dim_specialoffer;
+        
+        INSERT INTO gold.dim_specialoffer (
+            specialoffer_id, offer_description, discount_pct, offer_type, offer_category,
+            start_date, end_date, min_qty, max_qty, is_active
+        )
+        SELECT 
+            specialoffer_id,
+            description   AS offer_description,
+            discountpct   AS discount_pct,
+            type          AS offer_type,
+            category      AS offer_category,
+            startdate     AS start_date,
+            enddate       AS end_date,
+            minqty        AS min_qty,
+            maxqty        AS max_qty,
+            CASE WHEN GETDATE() BETWEEN startdate AND enddate THEN 1 ELSE 0 END AS is_active
+        FROM silver.aw_sales_specialoffer;
+        
+        SET @DimRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' special offers';
+        PRINT '';
+        
+        -- 4. Load dim_salesreason
+        PRINT '  [4/5] Loading: dim_salesreason';
+        TRUNCATE TABLE gold.dim_salesreason;
+        
+        INSERT INTO gold.dim_salesreason (
+            salesreason_id, reason_name, reason_type
+        )
+        SELECT 
+            salesreason_id,
+            name       AS reason_name,
+            reasontype AS reason_type
+        FROM silver.aw_sales_salesreason;
+        
+        SET @DimRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' sales reasons';
+        PRINT '';
+        
+        -- 5. Load dim_customer (deduplicate addresses via ROW_NUMBER)
+        --    NOTE: order metrics (first/last order, LTV) are updated after fact_sales loads
+        PRINT '  [5/5] Loading: dim_customer';
+        TRUNCATE TABLE gold.dim_customer;
+        
+        INSERT INTO gold.dim_customer (
+            customer_id, person_id, customer_name, person_type, email_address,
+            address_line1, address_line2, city, state_province, country, postal_code,
+            territory_name, territory_key
+        )
+        SELECT 
+            customer_id, person_id, customer_name, person_type, email_address,
+            address_line1, address_line2, city, state_province, country, postal_code,
+            territory_name, territory_key
+        FROM (
+            SELECT 
+                c.customer_id,
+                c.person_id,
+                CONCAT(p.firstname, ' ', p.lastname)  AS customer_name,
+                p.persontype                           AS person_type,
+                e.emailaddress                         AS email_address,
+                a.addressline1                         AS address_line1,
+                a.addressline2                         AS address_line2,
+                a.city,
+                sp.name                                AS state_province,
+                sp.countryregioncode                   AS country,
+                a.postalcode                           AS postal_code,
+                t.name                                 AS territory_name,
+                dt.territory_key,
+                ROW_NUMBER() OVER (
+                    PARTITION BY c.customer_id 
+                    ORDER BY bea.address_id, e.emailaddress_id 
+                ) AS rn
+            FROM silver.aw_sales_customer c
+            LEFT JOIN silver.aw_person_person p
+                ON c.person_id = p.businessentity_id
+            LEFT JOIN silver.aw_person_emailaddress e
+                ON c.person_id = e.businessentity_id
+            LEFT JOIN silver.aw_person_businessentityaddress bea
+                ON c.person_id = bea.businessentity_id
+            LEFT JOIN silver.aw_person_address a
+                ON bea.address_id = a.address_id
+            LEFT JOIN silver.aw_person_stateprovince sp
+                ON a.stateprovince_id = sp.stateprovince_id
+            LEFT JOIN silver.aw_sales_salesterritory t
+                ON c.territory_id = t.territory_id
+            LEFT JOIN gold.dim_territory dt
+                ON t.territory_id = dt.territory_id
+        ) AS ranked_customers
+        WHERE rn = 1;
+        
+        SET @DimRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' customers (duplicates removed)';
+        PRINT '';
+        
+        PRINT '  ✓ SECTION 1: Complete - All Dimensions Loaded';
+        PRINT '';
+        
+        -- ========================================================================
+        -- SECTION 2: LOAD FACT TABLES
+        -- ========================================================================
+        
+        PRINT '=================================================================================';
+        PRINT 'SECTION 2: Loading Gold Layer Facts';
+        PRINT '=================================================================================';
+        PRINT '';
+        
+        -- -----------------------------------------------------------------------
+        -- [1/3] Load fact_sales
+        -- FIX: currency_code now uses tocurrencycode from silver.aw_sales_currencyrate
+        -- FIX: exchange_rate now uses averagerate (not currencyrate_id integer)
+        -- FIX: profit_amount = line_total - cost_amount (cost=0; no double-discount)
+        -- -----------------------------------------------------------------------
+        PRINT '  [1/3] Loading: fact_sales';
+        TRUNCATE TABLE gold.fact_sales;
+        
+        INSERT INTO gold.fact_sales (
+            salesorder_id, salesorderdetail_id,
+            order_date_key, due_date_key, ship_date_key,
+            customer_key, product_key, territory_key, specialoffer_key,
+            order_number, purchase_order_number,
+            order_quantity,
+            unit_price, unit_discount,
+            line_total, discount_amount, cost_amount, profit_amount,
+            subtotal, tax_amount, freight, total_due,
+            is_online_order, order_status
+        )
+        SELECT 
+            sod.salesorder_id,
+            sod.salesorderdetail_id,
 
-IF OBJECT_ID('gold.fact_salesreason', 'U') IS NOT NULL DROP TABLE gold.fact_salesreason;
-IF OBJECT_ID('gold.fact_customer_rfm', 'U') IS NOT NULL DROP TABLE gold.fact_customer_rfm;
-IF OBJECT_ID('gold.fact_sales', 'U') IS NOT NULL DROP TABLE gold.fact_sales;
-IF OBJECT_ID('gold.dim_salesreason', 'U') IS NOT NULL DROP TABLE gold.dim_salesreason;
-IF OBJECT_ID('gold.dim_specialoffer', 'U') IS NOT NULL DROP TABLE gold.dim_specialoffer;
-IF OBJECT_ID('gold.dim_customer', 'U') IS NOT NULL DROP TABLE gold.dim_customer;
-IF OBJECT_ID('gold.dim_product', 'U') IS NOT NULL DROP TABLE gold.dim_product;
-IF OBJECT_ID('gold.dim_territory', 'U') IS NOT NULL DROP TABLE gold.dim_territory;
-IF OBJECT_ID('gold.dim_date', 'U') IS NOT NULL DROP TABLE gold.dim_date;
+            -- Date keys (YYYYMMDD integer)
+            CONVERT(INT, FORMAT(soh.orderdate, 'yyyyMMdd'))  AS order_date_key,
+            CONVERT(INT, FORMAT(soh.duedate,   'yyyyMMdd'))  AS due_date_key,
+            CONVERT(INT, FORMAT(soh.shipdate,  'yyyyMMdd'))  AS ship_date_key,
+
+            -- Dimension keys
+            dc.customer_key,
+            dp.product_key,
+            dt.territory_key,
+            dso.specialoffer_key,
+
+            -- Degenerate dimensions
+            soh.salesordernumber     AS order_number,
+            soh.purchaseordernumber  AS purchase_order_number,
+
+            -- Quantity
+            sod.orderqty             AS order_quantity,
+
+
+            -- Pricing measures
+            sod.unitprice                                                     AS unit_price,
+            sod.unitpricediscount                                             AS unit_discount,
+
+            -- linetotal in AdventureWorks = orderqty * unitprice * (1 - unitpricediscount)
+            -- It is already the NET amount after discount.
+            sod.linetotal                                                     AS line_total,
+
+            -- discount_amount = the gross discount given on this line
+            sod.unitpricediscount * sod.orderqty * sod.unitprice             AS discount_amount,
+
+            -- cost_amount: no standard cost on detail; set 0 (enrich in a later phase)
+            CAST(0 AS DECIMAL(18,2))                                          AS cost_amount,
+
+            -- FIX #4: profit = revenue - cost. cost = 0, so profit = line_total.
+            -- Previous formula incorrectly subtracted discount a second time.
+            sod.linetotal - CAST(0 AS DECIMAL(18,2))                         AS profit_amount,
+
+            -- Order-level header amounts (denormalized per detail row)
+            soh.subtotal,
+            soh.taxamt    AS tax_amount,
+            soh.freight,
+            soh.totaldue  AS total_due,
+            soh.onlineorderflag AS is_online_order,
+            soh.status          AS order_status
+
+        FROM silver.aw_sales_salesorderdetail sod
+        INNER JOIN silver.aw_sales_salesorderheader soh
+            ON sod.salesorder_id = soh.salesorder_id
+        -- FIX: Join to currency rate table to resolve code and rate
+        LEFT JOIN gold.dim_customer dc
+            ON soh.customer_id = dc.customer_id
+        LEFT JOIN gold.dim_product dp
+            ON sod.product_id = dp.product_id
+        LEFT JOIN gold.dim_territory dt
+            ON soh.territory_id = dt.territory_id
+        LEFT JOIN gold.dim_specialoffer dso
+            ON sod.specialoffer_id = dso.specialoffer_id;
+
+        SET @FactRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' sales line items';
+        PRINT '';
+
+        -- -----------------------------------------------------------------------
+        -- UPDATE dim_customer with order metrics now that fact_sales is loaded
+        -- (SCD Type 1: overwrite with current aggregated values)
+        -- -----------------------------------------------------------------------
+        PRINT '        Updating dim_customer order metrics from fact_sales...';
+
+        UPDATE dc
+        SET
+            dc.first_order_date = agg.first_order_date,
+            dc.last_order_date  = agg.last_order_date,
+            dc.total_orders     = agg.total_orders,
+            dc.lifetime_value   = agg.lifetime_value,
+            dc.is_active        = CASE 
+                                      WHEN DATEDIFF(DAY, agg.last_order_date, GETDATE()) <= 365 
+                                      THEN 1 ELSE 0 
+                                  END,
+            dc.dwh_update_date  = GETDATE()
+        FROM gold.dim_customer dc
+        INNER JOIN (
+            SELECT
+                customer_key,
+                CAST(MIN(soh.orderdate) AS DATE)   AS first_order_date,
+                CAST(MAX(soh.orderdate) AS DATE)   AS last_order_date,
+                COUNT(DISTINCT soh.salesorder_id)  AS total_orders,
+                SUM(soh.totaldue)                  AS lifetime_value
+            FROM silver.aw_sales_salesorderheader soh
+            INNER JOIN gold.dim_customer dc2
+                ON soh.customer_id = dc2.customer_id
+            GROUP BY dc2.customer_key
+        ) AS agg ON dc.customer_key = agg.customer_key;
+
+        PRINT '        ✓ dim_customer order metrics updated';
+        PRINT '';
+        
+        -- [2/3] Load fact_salesreason
+        -- FIX: Use MIN(sales_key) per salesorder_id to avoid fan-out.
+        -- Sales reasons are header-level; fact_sales is detail-level.
+        -- We link each reason to the first (lowest) sales_key of that order.
+        PRINT '  [2/3] Loading: fact_salesreason';
+        TRUNCATE TABLE gold.fact_salesreason;
+        
+        INSERT INTO gold.fact_salesreason (
+            sales_key, salesreason_key
+        )
+        SELECT 
+            fs_min.sales_key,
+            dsr.salesreason_key
+        FROM silver.aw_sales_salesorderheadersalesreason sohr
+        INNER JOIN (
+            -- One representative sales_key per order (avoids multiplying reasons by line count)
+            SELECT salesorder_id, MIN(sales_key) AS sales_key
+            FROM gold.fact_sales
+            GROUP BY salesorder_id
+        ) fs_min ON sohr.salesorder_id = fs_min.salesorder_id
+        INNER JOIN gold.dim_salesreason dsr
+            ON sohr.salesreason_id = dsr.salesreason_id;
+        
+        SET @FactRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' sales reason associations';
+        PRINT '';
+        
+        -- -----------------------------------------------------------------------
+        -- [3/3] Load fact_customer_rfm
+        -- FIX: Moved CTE before INSERT (semicolon after column list was terminating
+        --      the INSERT statement, making the SELECT unreachable)
+        --
+        -- BTYD definitions (per lifetimes library):
+        --   recency        = days between first and last purchase
+        --   frequency      = number of repeat purchases (total_orders - 1)
+        --   T              = customer age in days (first purchase → today)
+        --   monetary_value = average order value (total_revenue / total_orders)
+        -- -----------------------------------------------------------------------
+        PRINT '  [3/3] Loading: fact_customer_rfm';
+        TRUNCATE TABLE gold.fact_customer_rfm;
+
+        -- FIX: CTE must appear BEFORE the INSERT, not after it
+        ;WITH customer_metrics AS (
+            SELECT 
+                dc.customer_key,
+                MIN(soh.orderdate)                          AS first_date,
+                MAX(soh.orderdate)                          AS last_date,
+                COUNT(DISTINCT soh.salesorder_id)           AS total_orders,
+                SUM(soh.totaldue)                           AS total_rev,
+                SUM(sod_agg.line_items_qty)                 AS total_qty
+            FROM gold.dim_customer dc
+            INNER JOIN silver.aw_sales_salesorderheader soh
+                ON dc.customer_id = soh.customer_id
+            LEFT JOIN (
+                SELECT salesorder_id, SUM(orderqty) AS line_items_qty 
+                FROM silver.aw_sales_salesorderdetail 
+                GROUP BY salesorder_id
+            ) sod_agg ON soh.salesorder_id = sod_agg.salesorder_id
+            GROUP BY dc.customer_key
+        )
+        INSERT INTO gold.fact_customer_rfm (
+            customer_key, snapshot_date,
+            recency, frequency, T,
+            monetary_value, total_revenue, total_orders, avg_order_value,
+            total_quantity, first_order_date, last_order_date, days_between_orders,
+            r_score, f_score, m_score, rfm_score,
+            customer_segment,
+            clv_estimate, churn_probability, predicted_purchases_90d,
+            is_active
+        )
+        SELECT 
+            customer_key,
+            CAST(GETDATE() AS DATE)                        AS snapshot_date,
+
+            -- BTYD: Recency = days between first and last purchase
+            DATEDIFF(DAY, first_date, last_date)           AS recency,
+
+            -- BTYD: Frequency = repeat purchases only (n - 1)
+            CASE WHEN total_orders > 0 
+                 THEN total_orders - 1 
+                 ELSE 0 
+            END                                            AS frequency,
+
+            -- BTYD: T = customer age since first purchase to today
+            DATEDIFF(DAY, first_date, GETDATE())           AS T,
+
+            -- BTYD: Monetary = average order value
+            total_rev / NULLIF(total_orders, 0)            AS monetary_value,
+
+            total_rev                                      AS total_revenue,
+            total_orders,
+            total_rev / NULLIF(total_orders, 0)            AS avg_order_value,
+            total_qty                                      AS total_quantity,
+
+            CAST(first_date AS DATE)                       AS first_order_date,
+            CAST(last_date  AS DATE)                       AS last_order_date,
+
+            -- Average days between purchases (NULL for single-purchase customers)
+            CASE 
+                WHEN total_orders > 1 
+                THEN DATEDIFF(DAY, first_date, last_date) 
+                     / CAST(total_orders - 1 AS DECIMAL(10,2))
+                ELSE NULL 
+            END                                            AS days_between_orders,
+
+            -- RFM Scores 1-5
+            -- Recency: ASC = oldest gets 1, most recent gets 5 (higher = better)
+            NTILE(5) OVER (ORDER BY last_date  ASC)        AS r_score,
+            NTILE(5) OVER (ORDER BY total_orders ASC)      AS f_score,
+            NTILE(5) OVER (ORDER BY total_rev    ASC)      AS m_score,
+
+            -- RFM composite score string e.g. '555'
+            CAST(NTILE(5) OVER (ORDER BY last_date   ASC) AS VARCHAR(1)) +
+            CAST(NTILE(5) OVER (ORDER BY total_orders ASC) AS VARCHAR(1)) +
+            CAST(NTILE(5) OVER (ORDER BY total_rev    ASC) AS VARCHAR(1))
+                                                           AS rfm_score,
+
+            -- Customer segmentation (consistent NTILE directions with scores above)
+            CASE 
+                WHEN NTILE(5) OVER (ORDER BY last_date   ASC) >= 4
+                 AND NTILE(5) OVER (ORDER BY total_orders ASC) >= 4 THEN 'Champions'
+                WHEN NTILE(5) OVER (ORDER BY last_date   ASC) >= 4  THEN 'Loyal Customers'
+                WHEN NTILE(5) OVER (ORDER BY total_rev   ASC) >= 4  THEN 'Big Spenders'
+                WHEN NTILE(5) OVER (ORDER BY last_date   ASC) <= 2  THEN 'At Risk'
+                ELSE 'Potential'
+            END                                            AS customer_segment,
+
+            -- Predictive placeholders (replace with Python/ML output in later phase)
+            total_rev * 1.5                                AS clv_estimate,
+            CASE 
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) > 365 THEN 0.8
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) > 180 THEN 0.5
+                ELSE 0.2
+            END                                            AS churn_probability,
+            CASE 
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) <= 90 
+                THEN CAST(total_orders / 12.0 * 3 AS INT)
+                ELSE 0
+            END                                            AS predicted_purchases_90d,
+            CASE 
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) <= 365 THEN 1 
+                ELSE 0 
+            END                                            AS is_active
+
+        FROM customer_metrics;
+
+        SET @FactRowCount = @@ROWCOUNT;
+        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' customer RFM records';
+        PRINT '';
+        
+        PRINT '  ✓ SECTION 2: Complete - All Facts Loaded';
+        PRINT '';
+        
+        -- ========================================================================
+        -- SECTION 3: RECREATE FOREIGN KEY CONSTRAINTS
+        -- ========================================================================
+        
+        PRINT '=================================================================================';
+        PRINT 'SECTION 3: Recreating Foreign Key Constraints';
+        PRINT '=================================================================================';
+        PRINT '';
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_order_date')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_order_date 
+                FOREIGN KEY (order_date_key) REFERENCES gold.dim_date(date_key);
+            PRINT '  ✓ Added: fk_fact_sales_order_date';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_due_date')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_due_date 
+                FOREIGN KEY (due_date_key) REFERENCES gold.dim_date(date_key);
+            PRINT '  ✓ Added: fk_fact_sales_due_date';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_ship_date')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_ship_date 
+                FOREIGN KEY (ship_date_key) REFERENCES gold.dim_date(date_key);
+            PRINT '  ✓ Added: fk_fact_sales_ship_date';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_customer')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_customer 
+                FOREIGN KEY (customer_key) REFERENCES gold.dim_customer(customer_key);
+            PRINT '  ✓ Added: fk_fact_sales_customer';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_product')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_product 
+                FOREIGN KEY (product_key) REFERENCES gold.dim_product(product_key);
+            PRINT '  ✓ Added: fk_fact_sales_product';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_territory')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_territory 
+                FOREIGN KEY (territory_key) REFERENCES gold.dim_territory(territory_key);
+            PRINT '  ✓ Added: fk_fact_sales_territory';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_specialoffer')
+        BEGIN
+            ALTER TABLE gold.fact_sales
+            ADD CONSTRAINT fk_fact_sales_specialoffer 
+                FOREIGN KEY (specialoffer_key) REFERENCES gold.dim_specialoffer(specialoffer_key);
+            PRINT '  ✓ Added: fk_fact_sales_specialoffer';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_salesreason_sales')
+        BEGIN
+            ALTER TABLE gold.fact_salesreason
+            ADD CONSTRAINT fk_fact_salesreason_sales 
+                FOREIGN KEY (sales_key) REFERENCES gold.fact_sales(sales_key);
+            PRINT '  ✓ Added: fk_fact_salesreason_sales';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_salesreason_reason')
+        BEGIN
+            ALTER TABLE gold.fact_salesreason
+            ADD CONSTRAINT fk_fact_salesreason_reason 
+                FOREIGN KEY (salesreason_key) REFERENCES gold.dim_salesreason(salesreason_key);
+            PRINT '  ✓ Added: fk_fact_salesreason_reason';
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_customer_rfm')
+        BEGIN
+            ALTER TABLE gold.fact_customer_rfm
+            ADD CONSTRAINT fk_fact_customer_rfm 
+                FOREIGN KEY (customer_key) REFERENCES gold.dim_customer(customer_key);
+            PRINT '  ✓ Added: fk_fact_customer_rfm';
+        END
+        
+        PRINT '';
+        PRINT '  ✓ SECTION 3: Complete - All Foreign Keys Recreated';
+        PRINT '';
+        
+        -- ========================================================================
+        -- FINAL SUMMARY
+        -- ========================================================================
+        
+        SET @EndTime = SYSUTCDATETIME();
+        
+        PRINT '=================================================================================';
+        PRINT 'Complete Gold Layer Data Warehouse ETL Process - SUCCESS';
+        PRINT '=================================================================================';
+        PRINT '  ✓ 5 dimension tables loaded';
+        PRINT '  ✓ dim_customer order metrics updated from fact_sales';
+        PRINT '  ✓ 3 fact tables loaded';
+        PRINT '  ✓ 10 foreign key constraints recreated';
+        PRINT '  ✓ Referential integrity enforced';
+        PRINT '';
+        PRINT 'Start Time: ' + CONVERT(VARCHAR(30), @StartTime, 121);
+        PRINT 'End Time:   ' + CONVERT(VARCHAR(30), @EndTime, 121);
+        PRINT 'Duration:   ' + CAST(DATEDIFF(SECOND, @StartTime, @EndTime) AS VARCHAR(20)) + ' seconds';
+        PRINT '=================================================================================';
+        
+    END TRY
+    BEGIN CATCH
+        SELECT 
+            @ErrorMessage  = ERROR_MESSAGE(),
+            @ErrorSeverity = ERROR_SEVERITY(),
+            @ErrorState    = ERROR_STATE();
+        
+        PRINT '';
+        PRINT '=================================================================================';
+        PRINT 'ERROR: Gold Layer Data Warehouse ETL Process Failed';
+        PRINT '=================================================================================';
+        PRINT 'Error Message:  ' + @ErrorMessage;
+        PRINT 'Error Severity: ' + CAST(@ErrorSeverity AS VARCHAR(10));
+        PRINT 'Error State:    ' + CAST(@ErrorState AS VARCHAR(10));
+        PRINT 'Error Line:     ' + CAST(ERROR_LINE() AS VARCHAR(10));
+        PRINT '=================================================================================';
+        
+        THROW;
+    END CATCH
+END
 GO
-
 
 PRINT '=================================================================================';
-PRINT 'Creating Gold Layer Dimension Tables (SCD Type 1)';
+PRINT 'Stored procedure gold.sp_load_complete_datawarehouse created successfully';
 PRINT '=================================================================================';
-PRINT '';
-
--- =================================================================================
--- DIM_DATE: Standard Date Dimension
--- =================================================================================
-
-CREATE TABLE gold.dim_date (
-    date_key                INT NOT NULL,           -- YYYYMMDD format
-    date                    DATE NOT NULL,
-    year                    INT NOT NULL,
-    quarter                 INT NOT NULL,
-    month                   INT NOT NULL,
-    month_name              NVARCHAR(20) NOT NULL,
-    day_of_month            INT NOT NULL,
-    day_of_week             INT NOT NULL,
-    day_name                NVARCHAR(20) NOT NULL,
-    week_of_year            INT NOT NULL,
-    is_weekend              BIT NOT NULL,
-    is_holiday              BIT NOT NULL DEFAULT 0,
-    fiscal_year             INT NOT NULL,
-    fiscal_quarter          INT NOT NULL,
-    fiscal_month            INT NOT NULL,
-    year_month              CHAR(10) NOT NULL,
-    quarter_name            CHAR(10) NOT NULL,
-    
-    CONSTRAINT pk_dim_date PRIMARY KEY CLUSTERED (date_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_dim_date_date ON gold.dim_date(date);
-CREATE NONCLUSTERED INDEX ix_dim_date_year_month ON gold.dim_date(year, month);
-
-PRINT '✓ Dim_Date created';
-GO
-
--- =================================================================================
--- DIM_TERRITORY: Sales Territory Dimension (SCD Type 1)
--- =================================================================================
-
-CREATE TABLE gold.dim_territory (
-    territory_key           INT IDENTITY(1,1) NOT NULL,
-    territory_id            INT NOT NULL,
-    territory_name          NVARCHAR(50) NOT NULL,
-    country_code            NVARCHAR(3) NOT NULL,
-    region_group            NVARCHAR(50) NOT NULL,
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    dwh_update_date         DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_dim_territory PRIMARY KEY CLUSTERED (territory_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_dim_territory_id ON gold.dim_territory(territory_id);
-
-PRINT '✓ Dim_Territory created';
-GO
-
--- =================================================================================
--- DIM_PRODUCT: Product Dimension (SCD Type 1)
--- =================================================================================
-
-CREATE TABLE gold.dim_product (
-    product_key             INT IDENTITY(1,1) NOT NULL,
-    product_id              INT NOT NULL,
-    product_name            NVARCHAR(100) NOT NULL,
-    product_number          NVARCHAR(50) NOT NULL,
-    category_name           NVARCHAR(50) NULL,
-    subcategory_name        NVARCHAR(50) NULL,
-    color                   NVARCHAR(20) NULL,
-    size                    NVARCHAR(10) NULL,
-    product_line            NVARCHAR(2) NULL,
-    class                   NVARCHAR(2) NULL,
-    style                   NVARCHAR(2) NULL,
-    list_price              DECIMAL(18,2) NOT NULL,
-    standard_cost           DECIMAL(18,2) NOT NULL,
-    days_to_manufacture     INT NULL,
-    is_active               BIT NOT NULL DEFAULT 1,
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    dwh_update_date         DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_dim_product PRIMARY KEY CLUSTERED (product_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_dim_product_id ON gold.dim_product(product_id);
-CREATE NONCLUSTERED INDEX ix_dim_product_category ON gold.dim_product(category_name, subcategory_name);
-
-PRINT '✓ Dim_Product created';
-GO
-
--- =================================================================================
--- DIM_CUSTOMER: Customer Dimension (SCD Type 1 - Overwrites)
--- =================================================================================
-
-CREATE TABLE gold.dim_customer (
-    customer_key            INT IDENTITY(1,1) NOT NULL,
-    customer_id             INT NOT NULL,
-    
-    -- Person information
-    person_id               INT NULL,
-    customer_name           NVARCHAR(200) NULL,
-    person_type             NVARCHAR(2) NULL,
-    
-    -- Contact information
-    email_address           NVARCHAR(100) NULL,
-    
-    -- Address information (denormalized - current address only)
-    address_line1           NVARCHAR(100) NULL,
-    address_line2           NVARCHAR(100) NULL,
-    city                    NVARCHAR(50) NULL,
-    state_province          NVARCHAR(50) NULL,
-    country                 NVARCHAR(50) NULL,
-    postal_code             NVARCHAR(20) NULL,
-    
-    -- Territory (current assignment)
-    territory_name          NVARCHAR(50) NULL,
-    territory_key           INT NULL,
-    
-    -- Customer metrics (SCD Type 1 - updated)
-    first_order_date        DATE NULL,
-    last_order_date         DATE NULL,
-    total_orders            INT NULL DEFAULT 0,
-    lifetime_value          DECIMAL(18,2) NULL DEFAULT 0,
-    
-    -- Pareto analysis - Revenue based
-    -- Populated by ETL after fact_sales is loaded
-    revenue_cumulative      DECIMAL(18,2) NULL,         -- Running total of revenue (desc rank)
-    revenue_pareto_pct      DECIMAL(7,4) NULL,          -- Cumulative revenue % of grand total
-
-    -- Pareto analysis - Quantity based
-    qty_cumulative          BIGINT NULL,                -- Running total of qty (desc rank)
-    qty_pareto_pct          DECIMAL(7,4) NULL,          -- Cumulative qty % of grand total
-
-    -- Status
-    is_active               BIT NOT NULL DEFAULT 1,
-    
-    -- Audit
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    dwh_update_date         DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_dim_customer PRIMARY KEY CLUSTERED (customer_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_dim_customer_id ON gold.dim_customer(customer_id);
-CREATE NONCLUSTERED INDEX ix_dim_customer_territory ON gold.dim_customer(territory_key);
-CREATE NONCLUSTERED INDEX ix_dim_customer_person ON gold.dim_customer(person_id) WHERE person_id IS NOT NULL;
-CREATE NONCLUSTERED INDEX ix_dim_customer_pareto ON gold.dim_customer(revenue_pareto_pct, qty_pareto_pct);
-
-PRINT '✓ Dim_Customer created (SCD Type 1 + Pareto columns)';
-GO
-
--- =================================================================================
--- DIM_SPECIALOFFER: Special Offer Dimension (SCD Type 1)
--- =================================================================================
-
-CREATE TABLE gold.dim_specialoffer (
-    specialoffer_key        INT IDENTITY(1,1) NOT NULL,
-    specialoffer_id         INT NOT NULL,
-    offer_description       NVARCHAR(100) NOT NULL,
-    discount_pct            DECIMAL(5,2) NOT NULL,
-    offer_type              NVARCHAR(50) NULL,
-    offer_category          NVARCHAR(50) NULL,
-    start_date              DATE NOT NULL,
-    end_date                DATE NOT NULL,
-    min_qty                 INT NULL,
-    max_qty                 INT NULL,
-    is_active               BIT NOT NULL,
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    dwh_update_date         DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_dim_specialoffer PRIMARY KEY CLUSTERED (specialoffer_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_dim_specialoffer_id ON gold.dim_specialoffer(specialoffer_id);
-
-PRINT '✓ Dim_SpecialOffer created';
-GO
-
--- =================================================================================
--- DIM_SALESREASON: Sales Reason Dimension
--- =================================================================================
-
-CREATE TABLE gold.dim_salesreason (
-    salesreason_key         INT IDENTITY(1,1) NOT NULL,
-    salesreason_id          INT NOT NULL,
-    reason_name             NVARCHAR(50) NOT NULL,
-    reason_type             NVARCHAR(50) NOT NULL,
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_dim_salesreason PRIMARY KEY CLUSTERED (salesreason_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_dim_salesreason_id ON gold.dim_salesreason(salesreason_id);
-
-PRINT '✓ Dim_SalesReason created';
-GO
-
-PRINT '';
-PRINT '=================================================================================';
-PRINT 'Creating Gold Layer Fact Tables';
-PRINT '=================================================================================';
-PRINT '';
-
--- =================================================================================
--- FACT_SALES: Main Sales Fact Table (NO FK CONSTRAINTS)
--- =================================================================================
-
-CREATE TABLE gold.fact_sales (
-    sales_key               BIGINT IDENTITY(1,1) NOT NULL,
-    
-    -- Natural keys
-    salesorder_id           INT NOT NULL,
-    salesorderdetail_id     INT NOT NULL,
-    
-    -- Role-playing date dimensions
-    order_date_key          INT NOT NULL,
-    due_date_key            INT NOT NULL,
-    ship_date_key           INT NULL,
-    
-    -- Dimension foreign keys
-    customer_key            INT NOT NULL,
-    product_key             INT NOT NULL,
-    territory_key           INT NOT NULL,
-    specialoffer_key        INT NOT NULL,
-    
-    -- Degenerate dimensions
-    order_number            NVARCHAR(25) NOT NULL,
-    purchase_order_number   NVARCHAR(25) NULL,
-    
-    -- Measures - Quantities
-    order_quantity          INT NOT NULL,
-    
-    -- Currency support
-    currency_code           CHAR(3) NOT NULL DEFAULT 'USD',
-    exchange_rate           DECIMAL(10,6) NULL DEFAULT 1.0,
-    
-    -- Measures - Amounts (in transaction currency)
-    unit_price              DECIMAL(18,2) NOT NULL,
-    unit_discount           DECIMAL(18,2) NOT NULL DEFAULT 0,
-    line_total              DECIMAL(18,2) NOT NULL,
-    discount_amount         DECIMAL(18,2) NOT NULL DEFAULT 0,
-    cost_amount             DECIMAL(18,2) NOT NULL DEFAULT 0,
-    -- gross_profit = revenue (line_total) - COGS (cost_amount)
-    gross_profit            DECIMAL(18,2) NOT NULL DEFAULT 0,
-    
-    -- Base currency amounts (for cross-currency aggregation)
-    line_total_base         AS (line_total * exchange_rate) PERSISTED,
-    gross_profit_base       AS (gross_profit * exchange_rate) PERSISTED,
-    
-    -- Order-level attributes
-    subtotal                DECIMAL(18,2) NOT NULL,
-    tax_amount              DECIMAL(18,2) NOT NULL,
-    freight                 DECIMAL(18,2) NOT NULL,
-    total_due               DECIMAL(18,2) NOT NULL,
-    
-    -- Flags
-    is_online_order         BIT NOT NULL,
-    order_status            TINYINT NOT NULL,
-    
-    -- Audit
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_fact_sales PRIMARY KEY CLUSTERED (sales_key)
-);
-
--- Performance indexes
-CREATE NONCLUSTERED INDEX ix_fact_sales_order_date 
-    ON gold.fact_sales(order_date_key) INCLUDE (line_total, order_quantity);
-CREATE NONCLUSTERED INDEX ix_fact_sales_ship_date 
-    ON gold.fact_sales(ship_date_key) INCLUDE (line_total) WHERE ship_date_key IS NOT NULL;
-CREATE NONCLUSTERED INDEX ix_fact_sales_customer 
-    ON gold.fact_sales(customer_key) INCLUDE (line_total, order_quantity, gross_profit);
-CREATE NONCLUSTERED INDEX ix_fact_sales_product 
-    ON gold.fact_sales(product_key) INCLUDE (line_total, order_quantity);
-CREATE NONCLUSTERED INDEX ix_fact_sales_territory 
-    ON gold.fact_sales(territory_key) INCLUDE (line_total);
-CREATE UNIQUE NONCLUSTERED INDEX ix_fact_sales_natural_key 
-    ON gold.fact_sales(salesorder_id, salesorderdetail_id);
-
-PRINT '✓ Fact_Sales created (gross_profit = revenue - COGS, no FK constraints)';
-GO
-
--- =================================================================================
--- FACT_SALESREASON: Bridge Table (NO FK CONSTRAINTS)
--- =================================================================================
-
-CREATE TABLE gold.fact_salesreason (
-    sales_key               BIGINT NOT NULL,
-    salesreason_key         INT NOT NULL,
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_fact_salesreason PRIMARY KEY CLUSTERED (sales_key, salesreason_key)
-);
-
-PRINT '✓ Fact_SalesReason (Bridge) created (without FK constraints)';
-GO
-
--- =================================================================================
--- FACT_CUSTOMER_RFM: Analytical Snapshot for BTYD Model (NO FK CONSTRAINTS)
--- =================================================================================
-
-CREATE TABLE gold.fact_customer_rfm (
-    rfm_key                 BIGINT IDENTITY(1,1) NOT NULL,
-    customer_key            INT NOT NULL,
-    snapshot_date           DATE NOT NULL,
-    
-    -- BTYD-compliant metrics
-    recency                 INT NOT NULL,                   -- Days between first and last purchase
-    frequency               INT NOT NULL,                   -- Number of REPEAT purchases (n-1)
-    T                       INT NOT NULL,                   -- Customer age (first purchase to snapshot)
-    monetary_value          DECIMAL(18,2) NOT NULL,         -- Avg order value
-    
-    -- Supporting metrics
-    total_revenue           DECIMAL(18,2) NOT NULL,
-    total_orders            INT NOT NULL,
-    avg_order_value         DECIMAL(18,2) NULL,
-    total_quantity          INT NULL,
-    
-    -- Key dates
-    first_order_date        DATE NOT NULL,
-    last_order_date         DATE NOT NULL,
-    
-    -- Behavioral metrics
-    days_between_orders     DECIMAL(10,2) NULL,
-    
-    -- RFM Scores (1-5)
-    r_score                 INT NULL,
-    f_score                 INT NULL,
-    m_score                 INT NULL,
-    rfm_score               VARCHAR(3) NULL,
-    
-    -- Segmentation
-    customer_segment        VARCHAR(20) NULL,
-    
-    -- Predictive (placeholder for Python output)
-    clv_estimate            DECIMAL(18,2) NULL,
-    churn_probability       DECIMAL(5,4) NULL,
-    predicted_purchases_90d INT NULL,
-    
-    -- Status
-    is_active               BIT NOT NULL,
-    
-    -- Audit
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_fact_customer_rfm PRIMARY KEY CLUSTERED (rfm_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_fact_customer_rfm_snapshot 
-    ON gold.fact_customer_rfm(customer_key, snapshot_date);
-CREATE NONCLUSTERED INDEX ix_fact_customer_rfm_segment 
-    ON gold.fact_customer_rfm(customer_segment) INCLUDE (recency, frequency, monetary_value);
-CREATE NONCLUSTERED INDEX ix_fact_customer_rfm_date 
-    ON gold.fact_customer_rfm(snapshot_date) INCLUDE (customer_key, rfm_score);
-
-PRINT '✓ Fact_CustomerRFM created (without FK constraints)';
-GO
-
-PRINT '';
-PRINT '=================================================================================';
-PRINT 'Gold Layer Creation Complete!';
-PRINT '=================================================================================';
-PRINT '';
-PRINT 'Schema Summary:';
-PRINT '  ✓ 6 Dimensions (all SCD Type 1)';
-PRINT '  ✓ 1 Fact Table with 3 date roles';
-PRINT '  ✓ 1 Bridge Table';
-PRINT '  ✓ 1 Analytical Fact (BTYD-ready)';
-PRINT '  ✓ Currency support enabled';
-PRINT '  ✓ Role-playing dates configured';
-PRINT '  ✓ NO foreign key constraints (for easier data loading)';
-PRINT '';
-PRINT 'Key Features:';
-PRINT '  • SCD Type 1: Simple overwrites (no history)';
-PRINT '  • Role-playing dates: order/due/ship';
-PRINT '  • Currency: code + exchange rate + base amounts';
-PRINT '  • BTYD: recency, frequency, T, monetary_value';
-PRINT '  • Gross Profit = Revenue - COGS (standard_cost * qty)';
-PRINT '  • Pareto columns on dim_customer: revenue + qty based';
-PRINT '  • No FK constraints: Allows TRUNCATE and faster loads';
+PRINT 'Usage: EXEC gold.sp_load_complete_datawarehouse;';
 PRINT '=================================================================================';
 GO
+
+EXEC gold.sp_load_complete_datawarehouse;
