@@ -62,16 +62,6 @@ This procedure:
 
 ---
 
-## SSIS Package Design
-
-Below is the main SSIS pipeline used for Bronze ingestion:
-
-> Replace the image path below with your actual screenshot file name.
-
-![Bronze SSIS Pipeline](./images/bronze_ssis_pipeline.png)
-
----
-
 ## Data Flow Strategy
 
 - Full load (TRUNCATE + INSERT)
