@@ -150,6 +150,7 @@ CREATE TABLE gold.dim_customer (
     postal_code             NVARCHAR(20) NULL,
     
     -- Territory (current assignment)
+    territory_name          NVARCHAR(50) NULL,
     territory_key           INT NULL,
     
     -- Customer metrics (SCD Type 1 - updated)

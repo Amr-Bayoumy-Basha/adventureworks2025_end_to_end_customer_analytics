@@ -34,12 +34,8 @@ BEGIN
     DECLARE @SQL NVARCHAR(MAX);
     DECLARE @DimRowCount INT = 0;
     DECLARE @FactRowCount INT = 0;
-    DECLARE @ObservationEndDate DATE;
     
     BEGIN TRY
-        SELECT @ObservationEndDate = MAX(orderdate)
-        FROM silver.aw_sales_salesorderheader;
-
         PRINT '=================================================================================';
         PRINT 'Starting Complete Gold Layer Data Warehouse ETL Process';
         PRINT 'Start Time: ' + CONVERT(VARCHAR(30), @StartTime, 121);
@@ -155,7 +151,7 @@ BEGIN
             enddate       AS end_date,
             minqty        AS min_qty,
             maxqty        AS max_qty,
-            CASE WHEN @ObservationEndDate BETWEEN startdate AND enddate THEN 1 ELSE 0 END AS is_active
+            CASE WHEN GETDATE() BETWEEN startdate AND enddate THEN 1 ELSE 0 END AS is_active
         FROM silver.aw_sales_specialoffer;
         
         SET @DimRowCount = @@ROWCOUNT;
@@ -187,12 +183,12 @@ BEGIN
         INSERT INTO gold.dim_customer (
             customer_id, person_id, customer_name, person_type, email_address,
             address_line1, address_line2, city, state_province, country, postal_code,
-            territory_key
+            territory_name, territory_key
         )
         SELECT 
             customer_id, person_id, customer_name, person_type, email_address,
             address_line1, address_line2, city, state_province, country, postal_code,
-            territory_key
+            territory_name, territory_key
         FROM (
             SELECT 
                 c.customer_id,
@@ -206,6 +202,7 @@ BEGIN
                 sp.name                                AS state_province,
                 sp.countryregioncode                   AS country,
                 a.postalcode                           AS postal_code,
+                t.name                                 AS territory_name,
                 dt.territory_key,
                 ROW_NUMBER() OVER (
                     PARTITION BY c.customer_id 
@@ -222,8 +219,10 @@ BEGIN
                 ON bea.address_id = a.address_id
             LEFT JOIN silver.aw_person_stateprovince sp
                 ON a.stateprovince_id = sp.stateprovince_id
+            LEFT JOIN silver.aw_sales_salesterritory t
+                ON c.territory_id = t.territory_id
             LEFT JOIN gold.dim_territory dt
-                ON c.territory_id = dt.territory_id
+                ON t.territory_id = dt.territory_id
         ) AS ranked_customers
         WHERE rn = 1;
         
@@ -268,9 +267,9 @@ BEGIN
             sod.salesorderdetail_id,
 
             -- Date keys (YYYYMMDD integer)
-            CONVERT(INT, CONVERT(CHAR(8), soh.orderdate, 112))  AS order_date_key,
-            CONVERT(INT, CONVERT(CHAR(8), soh.duedate,   112))  AS due_date_key,
-            CONVERT(INT, CONVERT(CHAR(8), soh.shipdate,  112))  AS ship_date_key,
+            CONVERT(INT, FORMAT(soh.orderdate, 'yyyyMMdd'))  AS order_date_key,
+            CONVERT(INT, FORMAT(soh.duedate,   'yyyyMMdd'))  AS due_date_key,
+            CONVERT(INT, FORMAT(soh.shipdate,  'yyyyMMdd'))  AS ship_date_key,
 
             -- Dimension keys
             dc.customer_key,
@@ -342,7 +341,7 @@ BEGIN
             dc.total_orders     = agg.total_orders,
             dc.lifetime_value   = agg.lifetime_value,
             dc.is_active        = CASE 
-                                      WHEN DATEDIFF(DAY, agg.last_order_date, @ObservationEndDate) <= 365 
+                                      WHEN DATEDIFF(DAY, agg.last_order_date, GETDATE()) <= 365 
                                       THEN 1 ELSE 0 
                                   END,
             dc.dwh_update_date  = GETDATE()
@@ -353,13 +352,10 @@ BEGIN
                 CAST(MIN(soh.orderdate) AS DATE)   AS first_order_date,
                 CAST(MAX(soh.orderdate) AS DATE)   AS last_order_date,
                 COUNT(DISTINCT soh.salesorder_id)  AS total_orders,
-                SUM(fs.line_total)                 AS lifetime_value
+                SUM(soh.totaldue)                  AS lifetime_value
             FROM silver.aw_sales_salesorderheader soh
             INNER JOIN gold.dim_customer dc2
                 ON soh.customer_id = dc2.customer_id
-            LEFT JOIN gold.fact_sales fs
-                ON soh.salesorder_id = fs.salesorder_id
-               AND dc2.customer_key = fs.customer_key
             GROUP BY dc2.customer_key
         ) AS agg ON dc.customer_key = agg.customer_key;
 
@@ -425,19 +421,6 @@ BEGIN
                 GROUP BY salesorder_id
             ) sod_agg ON soh.salesorder_id = sod_agg.salesorder_id
             GROUP BY dc.customer_key
-        ),
-        scored AS (
-            SELECT
-                customer_key,
-                first_date,
-                last_date,
-                total_orders,
-                total_rev,
-                total_qty,
-                NTILE(5) OVER (ORDER BY last_date ASC)      AS r_score,
-                NTILE(5) OVER (ORDER BY total_orders ASC)   AS f_score,
-                NTILE(5) OVER (ORDER BY total_rev ASC)      AS m_score
-            FROM customer_metrics
         )
         INSERT INTO gold.fact_customer_rfm (
             customer_key, snapshot_date,
@@ -451,7 +434,7 @@ BEGIN
         )
         SELECT 
             customer_key,
-            @ObservationEndDate                             AS snapshot_date,
+            CAST(GETDATE() AS DATE)                        AS snapshot_date,
 
             -- BTYD: Recency = days between first and last purchase
             DATEDIFF(DAY, first_date, last_date)           AS recency,
@@ -463,7 +446,7 @@ BEGIN
             END                                            AS frequency,
 
             -- BTYD: T = customer age since first purchase to today
-            DATEDIFF(DAY, first_date, @ObservationEndDate) AS T,
+            DATEDIFF(DAY, first_date, GETDATE())           AS T,
 
             -- BTYD: Monetary = average order value
             total_rev / NULLIF(total_orders, 0)            AS monetary_value,
@@ -486,43 +469,44 @@ BEGIN
 
             -- RFM Scores 1-5
             -- Recency: ASC = oldest gets 1, most recent gets 5 (higher = better)
-            r_score,
-            f_score,
-            m_score,
+            NTILE(5) OVER (ORDER BY last_date  ASC)        AS r_score,
+            NTILE(5) OVER (ORDER BY total_orders ASC)      AS f_score,
+            NTILE(5) OVER (ORDER BY total_rev    ASC)      AS m_score,
 
             -- RFM composite score string e.g. '555'
-            CAST(r_score AS VARCHAR(1)) +
-            CAST(f_score AS VARCHAR(1)) +
-            CAST(m_score AS VARCHAR(1))
+            CAST(NTILE(5) OVER (ORDER BY last_date   ASC) AS VARCHAR(1)) +
+            CAST(NTILE(5) OVER (ORDER BY total_orders ASC) AS VARCHAR(1)) +
+            CAST(NTILE(5) OVER (ORDER BY total_rev    ASC) AS VARCHAR(1))
                                                            AS rfm_score,
 
             -- Customer segmentation (consistent NTILE directions with scores above)
             CASE 
-                WHEN r_score >= 4 AND f_score >= 4 THEN 'Champions'
-                WHEN r_score >= 4 THEN 'Loyal Customers'
-                WHEN m_score >= 4 THEN 'Big Spenders'
-                WHEN r_score <= 2 THEN 'At Risk'
+                WHEN NTILE(5) OVER (ORDER BY last_date   ASC) >= 4
+                 AND NTILE(5) OVER (ORDER BY total_orders ASC) >= 4 THEN 'Champions'
+                WHEN NTILE(5) OVER (ORDER BY last_date   ASC) >= 4  THEN 'Loyal Customers'
+                WHEN NTILE(5) OVER (ORDER BY total_rev   ASC) >= 4  THEN 'Big Spenders'
+                WHEN NTILE(5) OVER (ORDER BY last_date   ASC) <= 2  THEN 'At Risk'
                 ELSE 'Potential'
             END                                            AS customer_segment,
 
             -- Predictive placeholders (replace with Python/ML output in later phase)
             total_rev * 1.5                                AS clv_estimate,
             CASE 
-                WHEN DATEDIFF(DAY, last_date, @ObservationEndDate) > 365 THEN 0.8
-                WHEN DATEDIFF(DAY, last_date, @ObservationEndDate) > 180 THEN 0.5
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) > 365 THEN 0.8
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) > 180 THEN 0.5
                 ELSE 0.2
             END                                            AS churn_probability,
             CASE 
-                WHEN DATEDIFF(DAY, last_date, @ObservationEndDate) <= 90 
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) <= 90 
                 THEN CAST(total_orders / 12.0 * 3 AS INT)
                 ELSE 0
             END                                            AS predicted_purchases_90d,
             CASE 
-                WHEN DATEDIFF(DAY, last_date, @ObservationEndDate) <= 365 THEN 1 
+                WHEN DATEDIFF(DAY, last_date, GETDATE()) <= 365 THEN 1 
                 ELSE 0 
             END                                            AS is_active
 
-        FROM scored;
+        FROM customer_metrics;
 
         SET @FactRowCount = @@ROWCOUNT;
         PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' customer RFM records';
