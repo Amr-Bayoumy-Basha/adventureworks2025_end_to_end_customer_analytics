@@ -1,4 +1,3 @@
--- Created by GitHub Copilot in SSMS - review carefully before executing
 /*
 =================================================================================
 Gold Layer ETL Stored Procedure – Complete Data Warehouse Loader v3.0
