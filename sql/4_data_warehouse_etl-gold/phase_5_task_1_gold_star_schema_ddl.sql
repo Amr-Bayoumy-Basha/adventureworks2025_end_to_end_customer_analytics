@@ -1,29 +1,46 @@
 /*
 =================================================================================
-Gold Layer - Star Schema DDL (FINAL VERSION - SCD Type 1 - No FK Constraints)
+Gold Layer - Complete Star Schema DDL (Based on Analytical SQL Validation)
 =================================================================================
-Features:
-1. SCD Type 1 for all dimensions (overwrite changes)
-2. Role-playing dates in Fact_Sales (order/due/ship)
-3. Currency support (code + exchange rate)
-4. BTYD-ready RFM metrics
-5. NO foreign key constraints (for easier data loading)
-6. Pareto analysis columns on dim_customer (qty + revenue based)
+VERSION  : 3.0
+AUTHOR   : Amr Bayomei Basha (Enhanced by Copilot)
+DATE     : May 2026
+TARGET   : SQL Server - AdventureWorks2025_CustomerDW
 
-TARGET: SQL Server (AdventureWorks2025_CustomerDW) | AUTHOR: Amr Bayomei Basha | DATE: May 2026
-VERSION: 1.1
+ARCHITECTURE:
+- Kimball Star Schema
+- SCD Type 1 Dimensions (descriptive only)
+- No Foreign Key Constraints (ETL-friendly)
+- All analytical metrics in fact tables
 
+FACT TABLES (derived from Analytical SQL Validation):
+1. fact_sales                    -- Transaction grain
+2. fact_customer_analytics       -- Customer grain (Q1/Q2/Q3 metrics)
+3. fact_customer_cohort          -- Cohort × Period grain (Q4 metrics)
+4. fact_customer_btyd_inputs     -- Customer grain (Q5/Q6/Q7 metrics)
+5. fact_salesreason              -- Bridge table
+
+DIMENSIONS (unchanged - descriptive only):
+1. dim_date
+2. dim_territory
+3. dim_product
+4. dim_customer
+5. dim_specialoffer
+6. dim_salesreason
 =================================================================================
 */
 
 USE AdventureWorks2025_CustomerDW;
 GO
 
--- =================================================================================
+-- =============================================================================
 -- DROP EXISTING TABLES (IN DEPENDENCY ORDER)
--- =================================================================================
+-- =============================================================================
 
 IF OBJECT_ID('gold.fact_salesreason', 'U') IS NOT NULL DROP TABLE gold.fact_salesreason;
+IF OBJECT_ID('gold.fact_customer_btyd_inputs', 'U') IS NOT NULL DROP TABLE gold.fact_customer_btyd_inputs;
+IF OBJECT_ID('gold.fact_customer_cohort', 'U') IS NOT NULL DROP TABLE gold.fact_customer_cohort;
+IF OBJECT_ID('gold.fact_customer_analytics', 'U') IS NOT NULL DROP TABLE gold.fact_customer_analytics;
 IF OBJECT_ID('gold.fact_customer_rfm', 'U') IS NOT NULL DROP TABLE gold.fact_customer_rfm;
 IF OBJECT_ID('gold.fact_sales', 'U') IS NOT NULL DROP TABLE gold.fact_sales;
 IF OBJECT_ID('gold.dim_salesreason', 'U') IS NOT NULL DROP TABLE gold.dim_salesreason;
@@ -34,18 +51,17 @@ IF OBJECT_ID('gold.dim_territory', 'U') IS NOT NULL DROP TABLE gold.dim_territor
 IF OBJECT_ID('gold.dim_date', 'U') IS NOT NULL DROP TABLE gold.dim_date;
 GO
 
-
 PRINT '=================================================================================';
-PRINT 'Creating Gold Layer Dimension Tables (SCD Type 1)';
+PRINT 'Creating Gold Layer Dimension Tables (SCD Type 1 - Descriptive Only)';
 PRINT '=================================================================================';
 PRINT '';
 
--- =================================================================================
--- DIM_DATE: Standard Date Dimension
--- =================================================================================
+-- =============================================================================
+-- DIM_DATE: Standard Date Dimension (Keep as-is)
+-- =============================================================================
 
 CREATE TABLE gold.dim_date (
-    date_key                INT NOT NULL,           -- YYYYMMDD format
+    date_key                INT NOT NULL,
     date                    DATE NOT NULL,
     year                    INT NOT NULL,
     quarter                 INT NOT NULL,
@@ -72,9 +88,9 @@ CREATE NONCLUSTERED INDEX ix_dim_date_year_month ON gold.dim_date(year, month);
 PRINT '✓ Dim_Date created';
 GO
 
--- =================================================================================
--- DIM_TERRITORY: Sales Territory Dimension (SCD Type 1)
--- =================================================================================
+-- =============================================================================
+-- DIM_TERRITORY: Sales Territory Dimension (Keep as-is)
+-- =============================================================================
 
 CREATE TABLE gold.dim_territory (
     territory_key           INT IDENTITY(1,1) NOT NULL,
@@ -93,9 +109,9 @@ CREATE UNIQUE NONCLUSTERED INDEX ix_dim_territory_id ON gold.dim_territory(terri
 PRINT '✓ Dim_Territory created';
 GO
 
--- =================================================================================
--- DIM_PRODUCT: Product Dimension (SCD Type 1)
--- =================================================================================
+-- =============================================================================
+-- DIM_PRODUCT: Product Dimension (Keep as-is)
+-- =============================================================================
 
 CREATE TABLE gold.dim_product (
     product_key             INT IDENTITY(1,1) NOT NULL,
@@ -125,9 +141,9 @@ CREATE NONCLUSTERED INDEX ix_dim_product_category ON gold.dim_product(category_n
 PRINT '✓ Dim_Product created';
 GO
 
--- =================================================================================
--- DIM_CUSTOMER: Customer Dimension (SCD Type 1 - Overwrites)
--- =================================================================================
+-- =============================================================================
+-- DIM_CUSTOMER: Customer Dimension (Descriptive only - no metrics)
+-- =============================================================================
 
 CREATE TABLE gold.dim_customer (
     customer_key            INT IDENTITY(1,1) NOT NULL,
@@ -141,7 +157,7 @@ CREATE TABLE gold.dim_customer (
     -- Contact information
     email_address           NVARCHAR(100) NULL,
     
-    -- Address information (denormalized - current address only)
+    -- Address information (current address only)
     address_line1           NVARCHAR(100) NULL,
     address_line2           NVARCHAR(100) NULL,
     city                    NVARCHAR(50) NULL,
@@ -151,24 +167,6 @@ CREATE TABLE gold.dim_customer (
     
     -- Territory (current assignment)
     territory_key           INT NULL,
-    
-    -- Customer metrics (SCD Type 1 - updated)
-    first_order_date        DATE NULL,
-    last_order_date         DATE NULL,
-    total_orders            INT NULL DEFAULT 0,
-    lifetime_value          DECIMAL(18,2) NULL DEFAULT 0,
-    
-    -- Pareto analysis - Revenue based
-    -- Populated by ETL after fact_sales is loaded
-    revenue_cumulative      DECIMAL(18,2) NULL,         -- Running total of revenue (desc rank)
-    revenue_pareto_pct      DECIMAL(7,4) NULL,          -- Cumulative revenue % of grand total
-
-    -- Pareto analysis - Quantity based
-    qty_cumulative          BIGINT NULL,                -- Running total of qty (desc rank)
-    qty_pareto_pct          DECIMAL(7,4) NULL,          -- Cumulative qty % of grand total
-
-    -- Status
-    is_active               BIT NOT NULL DEFAULT 1,
     
     -- Audit
     dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
@@ -180,14 +178,13 @@ CREATE TABLE gold.dim_customer (
 CREATE UNIQUE NONCLUSTERED INDEX ix_dim_customer_id ON gold.dim_customer(customer_id);
 CREATE NONCLUSTERED INDEX ix_dim_customer_territory ON gold.dim_customer(territory_key);
 CREATE NONCLUSTERED INDEX ix_dim_customer_person ON gold.dim_customer(person_id) WHERE person_id IS NOT NULL;
-CREATE NONCLUSTERED INDEX ix_dim_customer_pareto ON gold.dim_customer(revenue_pareto_pct, qty_pareto_pct);
 
-PRINT '✓ Dim_Customer created (SCD Type 1 + Pareto columns)';
+PRINT '✓ Dim_Customer created (descriptive only - all metrics moved to fact tables)';
 GO
 
--- =================================================================================
--- DIM_SPECIALOFFER: Special Offer Dimension (SCD Type 1)
--- =================================================================================
+-- =============================================================================
+-- DIM_SPECIALOFFER: Special Offer Dimension (Keep as-is)
+-- =============================================================================
 
 CREATE TABLE gold.dim_specialoffer (
     specialoffer_key        INT IDENTITY(1,1) NOT NULL,
@@ -212,9 +209,9 @@ CREATE UNIQUE NONCLUSTERED INDEX ix_dim_specialoffer_id ON gold.dim_specialoffer
 PRINT '✓ Dim_SpecialOffer created';
 GO
 
--- =================================================================================
--- DIM_SALESREASON: Sales Reason Dimension
--- =================================================================================
+-- =============================================================================
+-- DIM_SALESREASON: Sales Reason Dimension (Keep as-is)
+-- =============================================================================
 
 CREATE TABLE gold.dim_salesreason (
     salesreason_key         INT IDENTITY(1,1) NOT NULL,
@@ -233,13 +230,14 @@ GO
 
 PRINT '';
 PRINT '=================================================================================';
-PRINT 'Creating Gold Layer Fact Tables';
+PRINT 'Creating Gold Layer Fact Tables (Based on Analytical SQL Validation)';
 PRINT '=================================================================================';
 PRINT '';
 
--- =================================================================================
--- FACT_SALES: Main Sales Fact Table (NO FK CONSTRAINTS)
--- =================================================================================
+-- =============================================================================
+-- FACT_SALES: Transactional Sales Fact Table
+-- Source: Analytical SQL Validation - Transactions and sales metrics validation
+-- =============================================================================
 
 CREATE TABLE gold.fact_sales (
     sales_key               BIGINT IDENTITY(1,1) NOT NULL,
@@ -263,27 +261,28 @@ CREATE TABLE gold.fact_sales (
     order_number            NVARCHAR(25) NOT NULL,
     purchase_order_number   NVARCHAR(25) NULL,
     
-    -- Measures - Quantities
+    -- VOLUME METRICS
     order_quantity          INT NOT NULL,
     
-    -- Currency support
+    -- Currency support (defaulted)
     currency_code           CHAR(3) NOT NULL DEFAULT 'USD',
-    exchange_rate           DECIMAL(10,6) NULL DEFAULT 1.0,
+    exchange_rate           DECIMAL(10,6) NOT NULL DEFAULT 1.0,
     
-    -- Measures - Amounts (in transaction currency)
+    -- PRICE BEHAVIOR
     unit_price              DECIMAL(18,2) NOT NULL,
     unit_discount           DECIMAL(18,2) NOT NULL DEFAULT 0,
+    
+    -- Revenue (line_total = net amount after discount)
     line_total              DECIMAL(18,2) NOT NULL,
+    
+    -- DISCOUNT ANALYSIS
     discount_amount         DECIMAL(18,2) NOT NULL DEFAULT 0,
+    
+    -- COST & PROFITABILITY
     cost_amount             DECIMAL(18,2) NOT NULL DEFAULT 0,
-    -- gross_profit = revenue (line_total) - COGS (cost_amount)
     gross_profit            DECIMAL(18,2) NOT NULL DEFAULT 0,
     
-    -- Base currency amounts (for cross-currency aggregation)
-    line_total_base         AS (line_total * exchange_rate) PERSISTED,
-    gross_profit_base       AS (gross_profit * exchange_rate) PERSISTED,
-    
-    -- Order-level attributes
+    -- Order-level attributes (denormalized for drill-through)
     subtotal                DECIMAL(18,2) NOT NULL,
     tax_amount              DECIMAL(18,2) NOT NULL,
     freight                 DECIMAL(18,2) NOT NULL,
@@ -301,24 +300,201 @@ CREATE TABLE gold.fact_sales (
 
 -- Performance indexes
 CREATE NONCLUSTERED INDEX ix_fact_sales_order_date 
-    ON gold.fact_sales(order_date_key) INCLUDE (line_total, order_quantity);
+    ON gold.fact_sales(order_date_key) INCLUDE (line_total, order_quantity, gross_profit);
 CREATE NONCLUSTERED INDEX ix_fact_sales_ship_date 
     ON gold.fact_sales(ship_date_key) INCLUDE (line_total) WHERE ship_date_key IS NOT NULL;
 CREATE NONCLUSTERED INDEX ix_fact_sales_customer 
     ON gold.fact_sales(customer_key) INCLUDE (line_total, order_quantity, gross_profit);
 CREATE NONCLUSTERED INDEX ix_fact_sales_product 
-    ON gold.fact_sales(product_key) INCLUDE (line_total, order_quantity);
+    ON gold.fact_sales(product_key) INCLUDE (line_total, order_quantity, cost_amount);
 CREATE NONCLUSTERED INDEX ix_fact_sales_territory 
-    ON gold.fact_sales(territory_key) INCLUDE (line_total);
+    ON gold.fact_sales(territory_key) INCLUDE (line_total, gross_profit);
 CREATE UNIQUE NONCLUSTERED INDEX ix_fact_sales_natural_key 
     ON gold.fact_sales(salesorder_id, salesorderdetail_id);
 
-PRINT '✓ Fact_Sales created (gross_profit = revenue - COGS, no FK constraints)';
+PRINT '✓ Fact_Sales created (transaction grain)';
 GO
 
--- =================================================================================
--- FACT_SALESREASON: Bridge Table (NO FK CONSTRAINTS)
--- =================================================================================
+-- =============================================================================
+-- FACT_CUSTOMER_ANALYTICS: Customer-Level Analytical Fact Table
+-- Source: Analytical SQL Validation - fact_customer_analytics (Q1/Q2/Q3)
+-- Grain: One row per customer per snapshot date
+-- =============================================================================
+
+CREATE TABLE gold.fact_customer_analytics (
+    customer_analytics_key  BIGINT IDENTITY(1,1) NOT NULL,
+    
+    -- Dimension foreign key
+    customer_key            INT NOT NULL,
+    
+    -- Snapshot date
+    snapshot_date           DATE NOT NULL,
+    
+    -- =================================================================
+    -- Q1: Who are our most valuable customers?
+    -- =================================================================
+    -- VOLUME METRICS
+    total_revenue           DECIMAL(18,2) NULL,
+    total_orders            INT NULL,
+    total_quantity          INT NULL,
+    avg_order_value         DECIMAL(18,2) NULL,
+    
+    -- PROFITABILITY METRICS
+    gross_profit            DECIMAL(18,2) NULL,
+    profit_margin           DECIMAL(10,6) NULL,
+    
+    -- CONTRIBUTION METRICS
+    revenue_contribution    DECIMAL(10,6) NULL,
+    profit_contribution     DECIMAL(10,6) NULL,
+    
+    -- LIFETIME VALUE PROXIES
+    historical_clv_proxy    DECIMAL(18,2) NULL,
+    historical_lifetime_profit DECIMAL(18,2) NULL,
+    
+    -- =================================================================
+    -- Q2: Which customers are unprofitable or risky?
+    -- (Metrics already captured in Q1: gross_profit, profit_margin)
+    -- =================================================================
+    
+    -- =================================================================
+    -- Q3: How do customers differ in behavior?
+    -- =================================================================
+    -- CUSTOMER ACTIVITY & DIVERSITY
+    first_order_date        DATE NULL,
+    last_order_date         DATE NULL,
+    days_since_last_purchase INT NULL,
+    product_diversity       INT NULL,
+    category_diversity      INT NULL,
+    avg_days_between_purchases DECIMAL(10,2) NULL,
+    
+    -- RFM CORE METRICS
+    recency                 INT NULL,
+    frequency               INT NULL,
+    monetary                DECIMAL(18,2) NULL,
+    
+    -- RFM SCORES (1-5)
+    r_score                 INT NULL,
+    f_score                 INT NULL,
+    m_score                 INT NULL,
+    rfm_score               VARCHAR(3) NULL,
+    
+    -- CUSTOMER SEGMENTATION
+    customer_segment        VARCHAR(50) NULL,
+    
+    -- Audit
+    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
+    
+    CONSTRAINT pk_fact_customer_analytics PRIMARY KEY CLUSTERED (customer_analytics_key)
+);
+
+CREATE UNIQUE NONCLUSTERED INDEX ix_fact_customer_analytics_customer_snapshot 
+    ON gold.fact_customer_analytics(customer_key, snapshot_date);
+CREATE NONCLUSTERED INDEX ix_fact_customer_analytics_segment 
+    ON gold.fact_customer_analytics(customer_segment) INCLUDE (total_revenue, gross_profit);
+CREATE NONCLUSTERED INDEX ix_fact_customer_analytics_rfm 
+    ON gold.fact_customer_analytics(rfm_score) INCLUDE (recency, frequency, monetary);
+CREATE NONCLUSTERED INDEX ix_fact_customer_analytics_snapshot 
+    ON gold.fact_customer_analytics(snapshot_date) INCLUDE (customer_key);
+
+PRINT '✓ Fact_Customer_Analytics created (customer grain - Q1/Q2/Q3 metrics)';
+GO
+
+-- =============================================================================
+-- FACT_CUSTOMER_COHORT: Cohort Retention & Quality Analysis
+-- Source: Analytical SQL Validation - fact_customer_cohort (Q4)
+-- Grain: One row per cohort_month × period_number
+-- =============================================================================
+
+CREATE TABLE gold.fact_customer_cohort (
+    cohort_key              BIGINT IDENTITY(1,1) NOT NULL,
+    
+    -- Cohort definition
+    cohort_month            DATE NOT NULL,
+    period_number           INT NOT NULL,
+    
+    -- =================================================================
+    -- Q4: Are newer customer cohorts better or worse?
+    -- =================================================================
+    -- RETENTION METRICS
+    cohort_size             INT NOT NULL,
+    active_customers        INT NOT NULL,
+    retention_rate          DECIMAL(10,6) NULL,
+    
+    -- REVENUE METRICS
+    cohort_revenue          DECIMAL(18,2) NULL,
+    revenue_per_customer    DECIMAL(18,2) NULL,
+    
+    -- ORDER METRICS
+    cohort_orders           INT NULL,
+    orders_per_customer     DECIMAL(10,2) NULL,
+    
+    -- PROFIT METRICS
+    cohort_gross_profit     DECIMAL(18,2) NULL,
+    gross_profit_per_customer DECIMAL(18,2) NULL,
+    
+    -- Audit
+    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
+    
+    CONSTRAINT pk_fact_customer_cohort PRIMARY KEY CLUSTERED (cohort_key)
+);
+
+CREATE UNIQUE NONCLUSTERED INDEX ix_fact_customer_cohort_month_period 
+    ON gold.fact_customer_cohort(cohort_month, period_number);
+CREATE NONCLUSTERED INDEX ix_fact_customer_cohort_month 
+    ON gold.fact_customer_cohort(cohort_month) INCLUDE (cohort_size, retention_rate);
+
+PRINT '✓ Fact_Customer_Cohort created (cohort × period grain - Q4 metrics)';
+GO
+
+-- =============================================================================
+-- FACT_CUSTOMER_BTYD_INPUTS: Predictive Modeling Inputs (Lifetimes Package)
+-- Source: Analytical SQL Validation - fact_customer_btyd_inputs (Q5/Q6/Q7)
+-- Grain: One row per customer per observation date
+-- =============================================================================
+
+CREATE TABLE gold.fact_customer_btyd_inputs (
+    btyd_key                BIGINT IDENTITY(1,1) NOT NULL,
+    
+    -- Dimension foreign key
+    customer_key            INT NOT NULL,
+    
+    -- Observation metadata
+    observation_date        DATE NOT NULL,
+    duration_holdout        INT NOT NULL,
+    
+    -- =================================================================
+    -- Q5: Who is likely still active vs "dead"?
+    -- Q6: What actions should we take? (Prescriptive Foundation)
+    -- Q7: What is the value of our overall customer base?
+    -- =================================================================
+    -- BTYD CORE METRICS (Calibration Period)
+    frequency               INT NOT NULL,           -- Repeat purchase count
+    recency                 INT NOT NULL,           -- Days between first and last purchase
+    T                       INT NOT NULL,           -- Customer age during calibration
+    
+    -- MONETARY METRICS (Gamma-Gamma Inputs)
+    monetary_value          DECIMAL(18,2) NULL,     -- Average monetary value per transaction
+    
+    -- HOLDOUT VALIDATION METRICS
+    frequency_holdout       INT NULL,               -- Actual purchases in holdout period
+    
+    -- Audit
+    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
+    
+    CONSTRAINT pk_fact_customer_btyd_inputs PRIMARY KEY CLUSTERED (btyd_key)
+);
+
+CREATE UNIQUE NONCLUSTERED INDEX ix_fact_customer_btyd_customer_obs 
+    ON gold.fact_customer_btyd_inputs(customer_key, observation_date);
+CREATE NONCLUSTERED INDEX ix_fact_customer_btyd_obs 
+    ON gold.fact_customer_btyd_inputs(observation_date) INCLUDE (customer_key, frequency, recency, T);
+
+PRINT '✓ Fact_Customer_BTYD_Inputs created (customer grain - Q5/Q6/Q7 metrics)';
+GO
+
+-- =============================================================================
+-- FACT_SALESREASON: Bridge Table (Many-to-Many: Orders ↔ Sales Reasons)
+-- =============================================================================
 
 CREATE TABLE gold.fact_salesreason (
     sales_key               BIGINT NOT NULL,
@@ -328,68 +504,10 @@ CREATE TABLE gold.fact_salesreason (
     CONSTRAINT pk_fact_salesreason PRIMARY KEY CLUSTERED (sales_key, salesreason_key)
 );
 
-PRINT '✓ Fact_SalesReason (Bridge) created (without FK constraints)';
-GO
+CREATE NONCLUSTERED INDEX ix_fact_salesreason_reason 
+    ON gold.fact_salesreason(salesreason_key);
 
--- =================================================================================
--- FACT_CUSTOMER_RFM: Analytical Snapshot for BTYD Model (NO FK CONSTRAINTS)
--- =================================================================================
-
-CREATE TABLE gold.fact_customer_rfm (
-    rfm_key                 BIGINT IDENTITY(1,1) NOT NULL,
-    customer_key            INT NOT NULL,
-    snapshot_date           DATE NOT NULL,
-    
-    -- BTYD-compliant metrics
-    recency                 INT NOT NULL,                   -- Days between first and last purchase
-    frequency               INT NOT NULL,                   -- Number of REPEAT purchases (n-1)
-    T                       INT NOT NULL,                   -- Customer age (first purchase to snapshot)
-    monetary_value          DECIMAL(18,2) NOT NULL,         -- Avg order value
-    
-    -- Supporting metrics
-    total_revenue           DECIMAL(18,2) NOT NULL,
-    total_orders            INT NOT NULL,
-    avg_order_value         DECIMAL(18,2) NULL,
-    total_quantity          INT NULL,
-    
-    -- Key dates
-    first_order_date        DATE NOT NULL,
-    last_order_date         DATE NOT NULL,
-    
-    -- Behavioral metrics
-    days_between_orders     DECIMAL(10,2) NULL,
-    
-    -- RFM Scores (1-5)
-    r_score                 INT NULL,
-    f_score                 INT NULL,
-    m_score                 INT NULL,
-    rfm_score               VARCHAR(3) NULL,
-    
-    -- Segmentation
-    customer_segment        VARCHAR(20) NULL,
-    
-    -- Predictive (placeholder for Python output)
-    clv_estimate            DECIMAL(18,2) NULL,
-    churn_probability       DECIMAL(5,4) NULL,
-    predicted_purchases_90d INT NULL,
-    
-    -- Status
-    is_active               BIT NOT NULL,
-    
-    -- Audit
-    dwh_load_date           DATETIME NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT pk_fact_customer_rfm PRIMARY KEY CLUSTERED (rfm_key)
-);
-
-CREATE UNIQUE NONCLUSTERED INDEX ix_fact_customer_rfm_snapshot 
-    ON gold.fact_customer_rfm(customer_key, snapshot_date);
-CREATE NONCLUSTERED INDEX ix_fact_customer_rfm_segment 
-    ON gold.fact_customer_rfm(customer_segment) INCLUDE (recency, frequency, monetary_value);
-CREATE NONCLUSTERED INDEX ix_fact_customer_rfm_date 
-    ON gold.fact_customer_rfm(snapshot_date) INCLUDE (customer_key, rfm_score);
-
-PRINT '✓ Fact_CustomerRFM created (without FK constraints)';
+PRINT '✓ Fact_SalesReason (Bridge) created';
 GO
 
 PRINT '';
@@ -398,21 +516,22 @@ PRINT 'Gold Layer Creation Complete!';
 PRINT '=================================================================================';
 PRINT '';
 PRINT 'Schema Summary:';
-PRINT '  ✓ 6 Dimensions (all SCD Type 1)';
-PRINT '  ✓ 1 Fact Table with 3 date roles';
-PRINT '  ✓ 1 Bridge Table';
-PRINT '  ✓ 1 Analytical Fact (BTYD-ready)';
-PRINT '  ✓ Currency support enabled';
-PRINT '  ✓ Role-playing dates configured';
-PRINT '  ✓ NO foreign key constraints (for easier data loading)';
+PRINT '  ✓ 6 Dimensions (all SCD Type 1 - descriptive only)';
+PRINT '  ✓ 5 Fact Tables (all metrics from Analytical SQL Validation)';
+PRINT '  ✓ No Foreign Key Constraints (ETL-friendly)';
+PRINT '';
+PRINT 'Fact Tables:';
+PRINT '  1. fact_sales                  - Transaction grain';
+PRINT '  2. fact_customer_analytics     - Customer grain (Q1/Q2/Q3)';
+PRINT '  3. fact_customer_cohort        - Cohort × Period grain (Q4)';
+PRINT '  4. fact_customer_btyd_inputs   - Customer grain (Q5/Q6/Q7)';
+PRINT '  5. fact_salesreason            - Bridge table';
 PRINT '';
 PRINT 'Key Features:';
-PRINT '  • SCD Type 1: Simple overwrites (no history)';
-PRINT '  • Role-playing dates: order/due/ship';
-PRINT '  • Currency: code + exchange rate + base amounts';
-PRINT '  • BTYD: recency, frequency, T, monetary_value';
-PRINT '  • Gross Profit = Revenue - COGS (standard_cost * qty)';
-PRINT '  • Pareto columns on dim_customer: revenue + qty based';
-PRINT '  • No FK constraints: Allows TRUNCATE and faster loads';
+PRINT '  • All analytical metrics from validation queries preserved';
+PRINT '  • Dimensions remain descriptive only (no metrics)';
+PRINT '  • BTYD-ready predictive modeling inputs';
+PRINT '  • Cohort retention analysis support';
+PRINT '  • Customer segmentation & RFM analysis';
 PRINT '=================================================================================';
 GO
