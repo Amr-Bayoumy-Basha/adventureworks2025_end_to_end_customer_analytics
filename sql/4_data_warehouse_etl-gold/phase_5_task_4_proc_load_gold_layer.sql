@@ -4,7 +4,7 @@ Gold Layer ETL Stored Procedure – Complete Data Warehouse Loader v3.0
 =================================================================================
 VERSION  : 3.0 (Based on Analytical SQL Validation)
 AUTHOR   : Amr Bayomei Basha (Enhanced by Copilot)
-DATE     : May 2026
+DATE     : Jun 2026 
 TARGET   : SQL Server – AdventureWorks2025_CustomerDW
 DATABASE : Run in [AdventureWorks2025_CustomerDW] context (no USE statement)
 
