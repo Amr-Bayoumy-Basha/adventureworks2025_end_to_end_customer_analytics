@@ -4,7 +4,7 @@ Gold Layer - Complete Star Schema DDL (Based on Analytical SQL Validation)
 =================================================================================
 VERSION  : 3.0
 AUTHOR   : Amr Bayomei Basha (Enhanced by Copilot)
-DATE     : May 2026
+DATE     : Jun 2026 
 TARGET   : SQL Server - AdventureWorks2025_CustomerDW
 
 ARCHITECTURE:
