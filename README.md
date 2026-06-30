@@ -130,27 +130,44 @@ This foundation will then feed:
 
 ## Architecture Overview
 
+The project follows a layered analytical architecture designed to transform transactional data into actionable customer insights. Each layer has a clearly defined responsibility, enabling scalability, maintainability, and a structured analytical workflow.
+
 ### 1. OLTP Source
-The AdventureWorks2025 transactional database acts as the operational source system.
+
+The **AdventureWorks2025** transactional database serves as the operational source system, providing the raw business data used throughout the analytical pipeline.
 
 ### 2. Bronze Layer
-The Bronze layer ingests raw source data with minimal transformation and preserves source structure for downstream processing.
+
+The Bronze layer ingests raw source data with minimal transformation while preserving the original source structure for auditing, traceability, and downstream processing.
 
 ### 3. Silver Layer
-The Silver layer standardizes, cleans, and prepares data for analytics-oriented modeling.
+
+The Silver layer standardizes, cleans, validates, and integrates the data into a consistent analytical format, preparing it for dimensional modeling and business analysis.
 
 ### 4. Gold Layer
-The Gold layer contains the **customer-centric star schema** used for reporting, KPI calculations, and advanced analytics.
 
-### 5. Next Integrated Analytics Layer
-The next stage of the project will extend the warehouse into a broader analytical ecosystem with:
+The Gold layer implements a customer-centric star schema that supports reporting, KPI calculations, customer segmentation, customer lifetime value analysis, and advanced customer analytics.
 
-- OLAP / semantic modeling
-- Power BI reporting layer
-- DAX measures and KPI calculations
-- Python-based predictive modeling
-- predictive outputs written back into the warehouse
-- Power BI predictive dashboards powered by warehouse + model outputs
+### 5. Next Integrated Analytics Layer *(In Progress)*
+
+The next phase of the project extends the data warehouse into a complete analytical ecosystem by integrating:
+
+- SSAS Tabular semantic model (OLAP)
+- Power BI reporting and dashboard layer
+- Advanced DAX measures and business KPIs
+- Python-based predictive customer analytics
+- Predictive model outputs written back into the warehouse
+- Power BI dashboards powered by both historical warehouse data and predictive model outputs
+
+---
+
+## 📖 Project Documentation
+
+The GitHub repository focuses on the implementation of the project.
+
+For the complete project roadmap, architecture diagrams, implementation phases, business requirements, design decisions, and detailed technical documentation, please visit the Notion workspace.
+
+[![Notion](https://img.shields.io/badge/Notion-Project%20Workspace-black?logo=notion&logoColor=white)](https://app.notion.com/p/adventureworks_end_to_end_customer_analytics_project-2fb5c6a547688018a4c1ceeb6af81e0b)
 
 ---
 
