@@ -259,7 +259,7 @@ This repository is under active development and will continue expanding as each 
 ### Amr Basha
 Microsoft Certified Data Analyst | Power BI Developer | Customer Analytics Enthusiast
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-blue?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/azab-basha-552912289)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-blue?logo=linkedin&logoColor=white)]([https://www.linkedin.com/in/azab-basha-552912289](https://www.linkedin.com/in/amr-basha-552912289))
 [![GitHub](https://img.shields.io/badge/GitHub-Profile-black?logo=github&logoColor=white)](https://github.com/settings/profile)
 [![Microsoft Certification](https://img.shields.io/badge/Microsoft-PL--300%20Certified-0078D4?logo=microsoft&logoColor=white)](https://learn.microsoft.com/api/credentials/share/en-gb/AmrBasha-6771/9EADE87E2384B4FE?sharingId=2CD8A1FA31271217)
 
