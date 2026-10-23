@@ -336,7 +336,7 @@ BEGIN
             SELECT customer_id,
                    DATEDIFF(DAY, last_order_date, @ObservationEndDate) AS recency,
                    TotalOrdersPerCustomer AS frequency,
-                   AverageCustomerOrderValue AS monetary
+                   TotalRevenuePerCustomer AS monetary
             FROM CustomerMetrics
         ),
         rfm_scores AS (
