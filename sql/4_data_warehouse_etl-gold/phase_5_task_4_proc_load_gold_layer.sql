@@ -350,17 +350,29 @@ BEGIN
             SELECT customer_id, recency, frequency, monetary, r_score, f_score, m_score,
                    CONCAT(r_score, f_score, m_score) AS rfm_score,
                    CASE
-                       WHEN r_score = 5 AND f_score = 5 AND m_score >= 4 THEN 'Champions'
-                       WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Loyal Customers'
-                       WHEN r_score = 5 AND f_score BETWEEN 3 AND 4 THEN 'Potential Loyalists'
-                       WHEN r_score = 5 AND f_score <= 2 THEN 'Recent Customers'
-                       WHEN r_score BETWEEN 2 AND 3 AND f_score >= 4 AND m_score >= 4 THEN 'Cannot Lose Them'
-                       WHEN r_score BETWEEN 2 AND 3 AND f_score BETWEEN 2 AND 3 THEN 'Needs Attention'
-                       WHEN f_score >= 3 AND m_score <= 2 THEN 'Price Sensitive'
-                       WHEN r_score <= 2 AND f_score >= 3 THEN 'About To Sleep'
-                       WHEN r_score <= 2 AND f_score <= 2 THEN 'Hibernating'
-                       WHEN r_score = 1 AND f_score = 1 THEN 'Lost Customers'
-                       ELSE 'Others'
+                         -- 1. Check for Lost first so they don't get eaten by Hibernating
+                         WHEN r_score = 1 AND f_score = 1 THEN 'Lost Customers'
+                         
+                         -- 2. Elite & Loyal
+                         WHEN r_score = 5 AND f_score = 5 AND m_score >= 4 THEN 'Champions'
+                         WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Loyal Customers'
+                         
+                         -- 3. High Recency Gaps (Fixes the R=4, F=1/2/3 gap)
+                         WHEN r_score = 5 AND f_score BETWEEN 3 AND 4 THEN 'Potential Loyalists'
+                         WHEN r_score >= 4 AND f_score <= 2 THEN 'Recent Customers' -- Changed from R=5 to R>=4
+                         WHEN r_score = 4 AND f_score = 3 THEN 'Potential Loyalists'  -- Catches the R=4, F=3 gap
+                         
+                         -- 4. Risk / Attention
+                         WHEN r_score BETWEEN 2 AND 3 AND f_score >= 4 AND m_score >= 4 THEN 'Cannot Lose Them'
+                         WHEN r_score BETWEEN 2 AND 3 AND f_score BETWEEN 2 AND 3 THEN 'Needs Attention'
+                         
+                         -- 5. Value & Sleepers (Broadened to catch M=3 gaps)
+                         WHEN f_score >= 3 AND m_score <= 2 THEN 'Price Sensitive' -- Changed from <=2 to <=3
+                         WHEN r_score <= 2 AND f_score >= 3 THEN 'About To Sleep'
+                         WHEN r_score <= 2 AND f_score <= 2 THEN 'Hibernating'
+                         
+                         -- 6. Catch-all for remaining R=3, F=1 mid-range anomalies
+                         ELSE 'Regular Customers' 
                    END AS customer_segment
             FROM rfm_scores
         )
