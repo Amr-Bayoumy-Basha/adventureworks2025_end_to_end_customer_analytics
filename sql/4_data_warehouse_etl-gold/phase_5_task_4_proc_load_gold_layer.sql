@@ -1,29 +1,10 @@
 /*
 =================================================================================
-Gold Layer ETL Stored Procedure – Complete Data Warehouse Loader v3.0
+Gold Layer ETL Stored Procedure – Fixed for BTYD Holdout + Prediction Tables
 =================================================================================
-VERSION  : 3.0 (Based on Analytical SQL Validation)
-AUTHOR   : Amr Bayomei Basha (Enhanced by Copilot)
-DATE     : Jun 2026 
+VERSION  : 3.2
 TARGET   : SQL Server – AdventureWorks2025_CustomerDW
-DATABASE : Run in [AdventureWorks2025_CustomerDW] context (no USE statement)
-
-CHANGES FROM v2.0
-─────────────────────────────────────────────────────────────────────────────────
-  1.  [NEW FACTS]     Added fact_customer_analytics (Q1/Q2/Q3 metrics)
-                      Added fact_customer_cohort (Q4 cohort analysis)
-                      Added fact_customer_btyd_inputs (Q5/Q6/Q7 BTYD inputs)
-  2.  [ANALYTICS]     All analytical logic copied EXACTLY from Analytical SQL
-                      Validation script – no simplifications or deviations
-  3.  [ARCHITECTURE]  Retained all v2.0 patterns:
-                      - SCD Type 1 MERGE for dimensions
-                      - @ObservationEndDate for all analytical calculations
-                      - ROWS framing for window functions (tie-safe)
-                      - Transaction-wrapped (atomic load or rollback)
-                      - CONVERT(INT, CONVERT(CHAR(8)...112)) for date keys
-  4.  [SEQUENCE]      Load fact_sales → fact_customer_analytics → 
-                      fact_customer_cohort → fact_customer_btyd_inputs → 
-                      fact_salesreason
+DATABASE : Run in [AdventureWorks2025_CustomerDW] context
 =================================================================================
 */
 
@@ -45,23 +26,22 @@ BEGIN
     DECLARE @ErrorSeverity      INT;
     DECLARE @ErrorState         INT;
     DECLARE @SQL                NVARCHAR(MAX);
-    DECLARE @DimRowCount        INT = 0;
-    DECLARE @FactRowCount       INT = 0;
     DECLARE @ObservationEndDate DATE;
-    DECLARE @duration_holdout   INT = 90; -- BTYD holdout window (days)
+    DECLARE @HoldoutStartDate   DATE;
+    DECLARE @duration_holdout   INT = 90;
 
     BEGIN TRY
 
-        -- ────────────────────────────────────────────────────────────────────
-        -- Resolve dataset observation date (historical anchor for analytics)
-        -- ────────────────────────────────────────────────────────────────────
         SELECT @ObservationEndDate = CAST(MAX(orderdate) AS DATE)
         FROM silver.aw_sales_salesorderheader;
 
+        SET @HoldoutStartDate = DATEADD(DAY, -(@duration_holdout - 1), @ObservationEndDate);
+
         PRINT '=================================================================================';
-        PRINT 'Gold Layer ETL v3.0 – Complete Data Warehouse Loader';
+        PRINT 'Gold Layer ETL v3.2 – Complete Data Warehouse Loader';
         PRINT 'ETL Start Time     : ' + CONVERT(VARCHAR(30), @StartTime, 121);
         PRINT 'Observation Date   : ' + CONVERT(VARCHAR(10), @ObservationEndDate, 120);
+        PRINT 'Holdout Start Date : ' + CONVERT(VARCHAR(10), @HoldoutStartDate, 120);
         PRINT 'BTYD Holdout       : ' + CAST(@duration_holdout AS VARCHAR(10)) + ' days';
         PRINT '=================================================================================';
         PRINT '';
@@ -89,14 +69,10 @@ BEGIN
 
         PRINT '';
 
-        -- ====================================================================
-        -- BEGIN ATOMIC TRANSACTION
-        -- ====================================================================
         BEGIN TRANSACTION;
 
         -- ====================================================================
-        -- SECTION 1: LOAD DIMENSION TABLES (SCD Type 1 MERGE)
-        -- User will handle dims separately - kept for completeness
+        -- SECTION 1: LOAD DIMENSION TABLES
         -- ====================================================================
         PRINT '=================================================================================';
         PRINT 'SECTION 1: Loading Dimension Tables (SCD Type 1 MERGE)';
@@ -111,12 +87,15 @@ BEGIN
             FROM silver.aw_sales_salesterritory
         ) AS src ON tgt.territory_id = src.territory_id
         WHEN MATCHED THEN
-            UPDATE SET tgt.territory_name = src.territory_name, tgt.country_code = src.country_code, tgt.region_group = src.region_group
+            UPDATE SET
+                tgt.territory_name = src.territory_name,
+                tgt.country_code = src.country_code,
+                tgt.region_group = src.region_group
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (territory_id, territory_name, country_code, region_group)
             VALUES (src.territory_id, src.territory_name, src.country_code, src.region_group);
-        SET @DimRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Merged: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' territory rows';
+
+        PRINT '        ✓ Completed: dim_territory';
         PRINT '';
 
         -- [2/5] dim_product
@@ -134,21 +113,29 @@ BEGIN
             LEFT JOIN silver.aw_production_productcategory pc ON ps.productcategory_id = pc.productcategory_id
         ) AS src ON tgt.product_id = src.product_id
         WHEN MATCHED THEN
-            UPDATE SET tgt.product_name = src.product_name, tgt.product_number = src.product_number,
-                       tgt.category_name = src.category_name, tgt.subcategory_name = src.subcategory_name,
-                       tgt.color = src.color, tgt.size = src.size, tgt.product_line = src.product_line,
-                       tgt.class = src.class, tgt.style = src.style, tgt.list_price = src.list_price,
-                       tgt.standard_cost = src.standard_cost, tgt.days_to_manufacture = src.days_to_manufacture,
-                       tgt.is_active = src.is_active
+            UPDATE SET
+                tgt.product_name = src.product_name,
+                tgt.product_number = src.product_number,
+                tgt.category_name = src.category_name,
+                tgt.subcategory_name = src.subcategory_name,
+                tgt.color = src.color,
+                tgt.size = src.size,
+                tgt.product_line = src.product_line,
+                tgt.class = src.class,
+                tgt.style = src.style,
+                tgt.list_price = src.list_price,
+                tgt.standard_cost = src.standard_cost,
+                tgt.days_to_manufacture = src.days_to_manufacture,
+                tgt.is_active = src.is_active
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (product_id, product_name, product_number, category_name, subcategory_name,
                     color, size, product_line, class, style, list_price, standard_cost,
                     days_to_manufacture, is_active)
             VALUES (src.product_id, src.product_name, src.product_number, src.category_name, src.subcategory_name,
-                    src.color, src.size, src.product_line, src.class, src.style, src.list_price, src.standard_cost,
-                    src.days_to_manufacture, src.is_active);
-        SET @DimRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Merged: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' product rows';
+                    src.color, src.size, src.product_line, src.class, src.style,
+                    src.list_price, src.standard_cost, src.days_to_manufacture, src.is_active);
+
+        PRINT '        ✓ Completed: dim_product';
         PRINT '';
 
         -- [3/5] dim_specialoffer
@@ -162,17 +149,23 @@ BEGIN
             FROM silver.aw_sales_specialoffer
         ) AS src ON tgt.specialoffer_id = src.specialoffer_id
         WHEN MATCHED THEN
-            UPDATE SET tgt.offer_description = src.offer_description, tgt.discount_pct = src.discount_pct,
-                       tgt.offer_type = src.offer_type, tgt.offer_category = src.offer_category,
-                       tgt.start_date = src.start_date, tgt.end_date = src.end_date,
-                       tgt.min_qty = src.min_qty, tgt.max_qty = src.max_qty, tgt.is_active = src.is_active
+            UPDATE SET
+                tgt.offer_description = src.offer_description,
+                tgt.discount_pct = src.discount_pct,
+                tgt.offer_type = src.offer_type,
+                tgt.offer_category = src.offer_category,
+                tgt.start_date = src.start_date,
+                tgt.end_date = src.end_date,
+                tgt.min_qty = src.min_qty,
+                tgt.max_qty = src.max_qty,
+                tgt.is_active = src.is_active
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (specialoffer_id, offer_description, discount_pct, offer_type, offer_category,
                     start_date, end_date, min_qty, max_qty, is_active)
             VALUES (src.specialoffer_id, src.offer_description, src.discount_pct, src.offer_type, src.offer_category,
                     src.start_date, src.end_date, src.min_qty, src.max_qty, src.is_active);
-        SET @DimRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Merged: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' special offer rows';
+
+        PRINT '        ✓ Completed: dim_specialoffer';
         PRINT '';
 
         -- [4/5] dim_salesreason
@@ -183,12 +176,14 @@ BEGIN
             FROM silver.aw_sales_salesreason
         ) AS src ON tgt.salesreason_id = src.salesreason_id
         WHEN MATCHED THEN
-            UPDATE SET tgt.reason_name = src.reason_name, tgt.reason_type = src.reason_type
+            UPDATE SET
+                tgt.reason_name = src.reason_name,
+                tgt.reason_type = src.reason_type
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (salesreason_id, reason_name, reason_type)
             VALUES (src.salesreason_id, src.reason_name, src.reason_type);
-        SET @DimRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Merged: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' sales reason rows';
+
+        PRINT '        ✓ Completed: dim_salesreason';
         PRINT '';
 
         -- [5/5] dim_customer
@@ -217,21 +212,29 @@ BEGIN
             FROM ranked_customers WHERE rn = 1
         ) AS src ON tgt.customer_id = src.customer_id
         WHEN MATCHED THEN
-            UPDATE SET tgt.person_id = src.person_id, tgt.customer_name = src.customer_name,
-                       tgt.person_type = src.person_type, tgt.email_address = src.email_address,
-                       tgt.address_line1 = src.address_line1, tgt.address_line2 = src.address_line2,
-                       tgt.city = src.city, tgt.state_province = src.state_province, tgt.country = src.country,
-                       tgt.postal_code = src.postal_code, tgt.territory_key = src.territory_key,
-                       tgt.dwh_update_date = GETDATE()
+            UPDATE SET
+                tgt.person_id = src.person_id,
+                tgt.customer_name = src.customer_name,
+                tgt.person_type = src.person_type,
+                tgt.email_address = src.email_address,
+                tgt.address_line1 = src.address_line1,
+                tgt.address_line2 = src.address_line2,
+                tgt.city = src.city,
+                tgt.state_province = src.state_province,
+                tgt.country = src.country,
+                tgt.postal_code = src.postal_code,
+                tgt.territory_key = src.territory_key,
+                tgt.dwh_update_date = GETDATE()
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (customer_id, person_id, customer_name, person_type, email_address,
                     address_line1, address_line2, city, state_province, country, postal_code, territory_key)
             VALUES (src.customer_id, src.person_id, src.customer_name, src.person_type, src.email_address,
                     src.address_line1, src.address_line2, src.city, src.state_province, src.country,
                     src.postal_code, src.territory_key);
-        SET @DimRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Merged: ' + CAST(@DimRowCount AS VARCHAR(20)) + ' customer rows';
+
+        PRINT '        ✓ Completed: dim_customer';
         PRINT '';
+
         PRINT '  ✓ SECTION 1 Complete';
         PRINT '';
 
@@ -243,9 +246,7 @@ BEGIN
         PRINT '=================================================================================';
         PRINT '';
 
-        -- ══════════════════════════════════════════════════════════════════
         -- [1/5] fact_sales
-        -- ══════════════════════════════════════════════════════════════════
         PRINT '  [1/5] Loading: fact_sales';
         TRUNCATE TABLE gold.fact_sales;
 
@@ -277,20 +278,16 @@ BEGIN
         LEFT JOIN gold.dim_territory dt ON soh.territory_id = dt.territory_id
         LEFT JOIN gold.dim_specialoffer dso ON sod.specialoffer_id = dso.specialoffer_id;
 
-        SET @FactRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' sales line items';
+        PRINT '        ✓ Loaded: fact_sales';
         PRINT '';
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- [2/5] fact_customer_analytics (EXACT LOGIC FROM VALIDATION)
-        -- ══════════════════════════════════════════════════════════════════
+        -- [2/5] fact_customer_analytics
         PRINT '  [2/5] Loading: fact_customer_analytics (Q1/Q2/Q3 metrics)';
         TRUNCATE TABLE gold.fact_customer_analytics;
 
         ;WITH CustomerMetrics AS (
             SELECT 
                 C.customer_id,
-                -- Q1: Most valuable customers
                 SUM(SOD.linetotal) AS TotalRevenuePerCustomer,
                 COUNT(DISTINCT SOD.salesorder_id) AS TotalOrdersPerCustomer,
                 SUM(SOD.orderqty) AS TotalQuantityPerCustomer,
@@ -310,13 +307,6 @@ BEGIN
                            FROM silver.aw_sales_salesorderdetail SOD2
                            INNER JOIN silver.aw_production_product PP2 ON SOD2.product_id = PP2.product_id)
                      ELSE 0 END AS CustomerProfitContribution,
-                CASE WHEN SUM(SOD.linetotal) > 0 
-                     THEN SUM(SOD.linetotal) * 1.0
-                     ELSE 0 END AS Historical_CLV_Proxy,
-                CASE WHEN SUM(SOD.linetotal) > 0 
-                     THEN (SUM(SOD.linetotal) - SUM(SOD.orderqty * PP.standardcost)) * 1.0
-                     ELSE 0 END AS Historical_Lifetime_Profit,
-                -- Q3: Customer behavior
                 MIN(SOH.orderdate) AS first_order_date,
                 MAX(SOH.orderdate) AS last_order_date,
                 DATEDIFF(DAY, MAX(SOH.orderdate), @ObservationEndDate) AS days_since_last_purchase,
@@ -350,29 +340,18 @@ BEGIN
             SELECT customer_id, recency, frequency, monetary, r_score, f_score, m_score,
                    CONCAT(r_score, f_score, m_score) AS rfm_score,
                    CASE
-                         -- 1. Check for Lost first so they don't get eaten by Hibernating
-                         WHEN r_score = 1 AND f_score = 1 THEN 'Lost Customers'
-                         
-                         -- 2. Elite & Loyal
-                         WHEN r_score = 5 AND f_score = 5 AND m_score >= 4 THEN 'Champions'
-                         WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Loyal Customers'
-                         
-                         -- 3. High Recency Gaps (Fixes the R=4, F=1/2/3 gap)
-                         WHEN r_score = 5 AND f_score BETWEEN 3 AND 4 THEN 'Potential Loyalists'
-                         WHEN r_score >= 4 AND f_score <= 2 THEN 'Recent Customers' -- Changed from R=5 to R>=4
-                         WHEN r_score = 4 AND f_score = 3 THEN 'Potential Loyalists'  -- Catches the R=4, F=3 gap
-                         
-                         -- 4. Risk / Attention
-                         WHEN r_score BETWEEN 2 AND 3 AND f_score >= 4 AND m_score >= 4 THEN 'Cannot Lose Them'
-                         WHEN r_score BETWEEN 2 AND 3 AND f_score BETWEEN 2 AND 3 THEN 'Needs Attention'
-                         
-                         -- 5. Value & Sleepers (Broadened to catch M=3 gaps)
-                         WHEN f_score >= 3 AND m_score <= 2 THEN 'Price Sensitive' -- Changed from <=2 to <=3
-                         WHEN r_score <= 2 AND f_score >= 3 THEN 'About To Sleep'
-                         WHEN r_score <= 2 AND f_score <= 2 THEN 'Hibernating'
-                         
-                         -- 6. Catch-all for remaining R=3, F=1 mid-range anomalies
-                         ELSE 'Regular Customers' 
+                       WHEN r_score = 1 AND f_score = 1 THEN 'Lost Customers'
+                       WHEN r_score = 5 AND f_score = 5 AND m_score >= 4 THEN 'Champions'
+                       WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Loyal Customers'
+                       WHEN r_score = 5 AND f_score BETWEEN 3 AND 4 THEN 'Potential Loyalists'
+                       WHEN r_score >= 4 AND f_score <= 2 THEN 'Recent Customers'
+                       WHEN r_score = 4 AND f_score = 3 THEN 'Potential Loyalists'
+                       WHEN r_score BETWEEN 2 AND 3 AND f_score >= 4 AND m_score >= 4 THEN 'Cannot Lose Them'
+                       WHEN r_score BETWEEN 2 AND 3 AND f_score BETWEEN 2 AND 3 THEN 'Needs Attention'
+                       WHEN f_score >= 3 AND m_score <= 2 THEN 'Price Sensitive'
+                       WHEN r_score <= 2 AND f_score >= 3 THEN 'About To Sleep'
+                       WHEN r_score <= 2 AND f_score <= 2 THEN 'Hibernating'
+                       ELSE 'Regular Customers'
                    END AS customer_segment
             FROM rfm_scores
         )
@@ -389,7 +368,7 @@ BEGIN
             dc.customer_key, @ObservationEndDate AS snapshot_date,
             cm.TotalRevenuePerCustomer, cm.TotalOrdersPerCustomer, cm.TotalQuantityPerCustomer, cm.AverageCustomerOrderValue,
             cm.CustomerGrossProfit, cm.CustomerProfitMargin, cm.CustomerRevenueContribution, cm.CustomerProfitContribution,
-            cm.Historical_CLV_Proxy, cm.Historical_Lifetime_Profit,
+            cm.TotalRevenuePerCustomer, cm.CustomerGrossProfit,
             cm.first_order_date, cm.last_order_date, cm.days_since_last_purchase,
             cm.product_diversity, cm.category_diversity, cm.avg_days_between_purchases,
             rs.recency, rs.frequency, rs.monetary, rs.r_score, rs.f_score, rs.m_score, rs.rfm_score, rs.customer_segment
@@ -397,13 +376,10 @@ BEGIN
         LEFT JOIN rfm_segments rs ON cm.customer_id = rs.customer_id
         INNER JOIN gold.dim_customer dc ON cm.customer_id = dc.customer_id;
 
-        SET @FactRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' customer analytics records';
+        PRINT '        ✓ Loaded: fact_customer_analytics';
         PRINT '';
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- [3/5] fact_customer_cohort (EXACT LOGIC FROM VALIDATION)
-        -- ══════════════════════════════════════════════════════════════════
+        -- [3/5] fact_customer_cohort
         PRINT '  [3/5] Loading: fact_customer_cohort (Q4 cohort analysis)';
         TRUNCATE TABLE gold.fact_customer_cohort;
 
@@ -448,27 +424,24 @@ BEGIN
         INNER JOIN cohort_size cs ON co.cohort_month = cs.cohort_month
         GROUP BY co.cohort_month, DATEDIFF(MONTH, co.cohort_month, co.order_month), cs.cohort_size;
 
-        SET @FactRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' cohort analysis records';
+        PRINT '        ✓ Loaded: fact_customer_cohort';
         PRINT '';
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- [4/5] fact_customer_btyd_inputs (EXACT LOGIC FROM VALIDATION)
-        -- ══════════════════════════════════════════════════════════════════
-        PRINT '  [4/5] Loading: fact_customer_btyd_inputs (Q5/Q6/Q7 BTYD inputs)';
+        -- [4/5] fact_customer_btyd_inputs
+        PRINT '  [4/5] Loading: fact_customer_btyd_inputs (Q5/Q6/Q7)';
         TRUNCATE TABLE gold.fact_customer_btyd_inputs;
 
         ;WITH calibration AS (
-            SELECT 
+            SELECT
                 C.customer_id,
                 COUNT(DISTINCT CONVERT(DATE, SOH.orderdate)) - 1 AS frequency,
                 DATEDIFF(DAY, MIN(SOH.orderdate), MAX(SOH.orderdate)) AS recency,
-                DATEDIFF(DAY, MIN(SOH.orderdate), DATEADD(DAY, -@duration_holdout, @ObservationEndDate)) AS T,
+                DATEDIFF(DAY, MIN(SOH.orderdate), @HoldoutStartDate) AS T,
                 SUM(SOD.linetotal) / COUNT(DISTINCT SOH.salesorder_id) AS monetary_value
             FROM silver.aw_sales_salesorderdetail SOD
             INNER JOIN silver.aw_sales_salesorderheader SOH ON SOD.salesorder_id = SOH.salesorder_id
             LEFT JOIN silver.aw_sales_customer C ON SOH.customer_id = C.customer_id
-            WHERE SOH.orderdate < DATEADD(DAY, -@duration_holdout, @ObservationEndDate)
+            WHERE SOH.orderdate < @HoldoutStartDate
             GROUP BY C.customer_id
         ),
         holdout AS (
@@ -476,7 +449,7 @@ BEGIN
                    COUNT(DISTINCT CONVERT(DATE, SOH.orderdate)) AS frequency_holdout
             FROM silver.aw_sales_salesorderheader SOH
             LEFT JOIN silver.aw_sales_customer C ON SOH.customer_id = C.customer_id
-            WHERE SOH.orderdate >= DATEADD(DAY, -@duration_holdout, @ObservationEndDate)
+            WHERE SOH.orderdate >= @HoldoutStartDate
               AND SOH.orderdate <= @ObservationEndDate
             GROUP BY C.customer_id
         )
@@ -484,20 +457,64 @@ BEGIN
             customer_key, observation_date, duration_holdout,
             frequency, recency, T, monetary_value, frequency_holdout
         )
-        SELECT 
-            dc.customer_key, @ObservationEndDate, @duration_holdout,
-            cal.frequency, cal.recency, cal.T, cal.monetary_value, h.frequency_holdout
-        FROM calibration AS cal
+        SELECT
+            dc.customer_key,
+            @ObservationEndDate,
+            @duration_holdout,
+            cal.frequency,
+            cal.recency,
+            cal.T,
+            cal.monetary_value,
+            COALESCE(h.frequency_holdout, 0) AS frequency_holdout
+        FROM calibration cal
         LEFT JOIN holdout h ON cal.customer_id = h.customer_id
         INNER JOIN gold.dim_customer dc ON cal.customer_id = dc.customer_id;
 
-        SET @FactRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' BTYD input records';
+        PRINT '        ✓ Loaded: fact_customer_btyd_inputs';
         PRINT '';
 
-        -- ══════════════════════════════════════════════════════════════════
+        -- [4b/5] Prepare BTYD output tables for Python model output
+        PRINT '  [4b/5] Preparing BTYD prediction/eval tables';
+        TRUNCATE TABLE gold.fact_customer_btyd_predictions;
+        TRUNCATE TABLE gold.fact_customer_btyd_eval;
+
+        -- Optional: if you create staging tables from Python, load them here.
+        IF OBJECT_ID('gold.stg_customer_btyd_predictions', 'U') IS NOT NULL
+        BEGIN
+            INSERT INTO gold.fact_customer_btyd_predictions (
+                run_id, customer_key, observation_date,
+                p_alive, predicted_purchases_30d, predicted_purchases_90d,
+                predicted_revenue_30d, predicted_revenue_90d, expected_avg_order_value,
+                alive_status, value_tier, action_segment
+            )
+            SELECT
+                run_id, customer_key, observation_date,
+                p_alive, predicted_purchases_30d, predicted_purchases_90d,
+                predicted_revenue_30d, predicted_revenue_90d, expected_avg_order_value,
+                alive_status, value_tier, action_segment
+            FROM gold.stg_customer_btyd_predictions;
+        END
+
+        IF OBJECT_ID('gold.stg_customer_btyd_eval', 'U') IS NOT NULL
+        BEGIN
+            INSERT INTO gold.fact_customer_btyd_eval (
+                run_id, customer_key, observation_date,
+                actual_holdout_purchases, predicted_holdout_purchases,
+                actual_holdout_revenue, predicted_holdout_revenue,
+                absolute_error, abs_pct_error, p_alive, alive_status
+            )
+            SELECT
+                run_id, customer_key, observation_date,
+                actual_holdout_purchases, predicted_holdout_purchases,
+                actual_holdout_revenue, predicted_holdout_revenue,
+                absolute_error, abs_pct_error, p_alive, alive_status
+            FROM gold.stg_customer_btyd_eval;
+        END
+
+        PRINT '        ✓ BTYD output tables prepared';
+        PRINT '';
+
         -- [5/5] fact_salesreason
-        -- ══════════════════════════════════════════════════════════════════
         PRINT '  [5/5] Loading: fact_salesreason';
         TRUNCATE TABLE gold.fact_salesreason;
 
@@ -511,23 +528,20 @@ BEGIN
         ) fs_min ON sohr.salesorder_id = fs_min.salesorder_id
         INNER JOIN gold.dim_salesreason dsr ON sohr.salesreason_id = dsr.salesreason_id;
 
-        SET @FactRowCount = @@ROWCOUNT;
-        PRINT '        ✓ Loaded: ' + CAST(@FactRowCount AS VARCHAR(20)) + ' sales reason associations';
+        PRINT '        ✓ Loaded: fact_salesreason';
         PRINT '';
+
         PRINT '  ✓ SECTION 2 Complete – All 5 Facts Loaded';
         PRINT '';
 
-                -- ====================================================================
-        -- SECTION 3: RECREATE FOREIGN KEY CONSTRAINTS (Star Schema Relationships)
+        -- ====================================================================
+        -- SECTION 3: Recreate foreign key constraints
         -- ====================================================================
         PRINT '=================================================================================';
         PRINT 'SECTION 3: Recreating Foreign Key Constraints (Star Schema)';
         PRINT '=================================================================================';
         PRINT '';
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- fact_sales → dimensions
-        -- ══════════════════════════════════════════════════════════════════
         IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_sales_customer')
         BEGIN
             ALTER TABLE gold.fact_sales ADD CONSTRAINT fk_fact_sales_customer
@@ -577,9 +591,6 @@ BEGIN
             PRINT '  ✓ Added: fk_fact_sales_ship_date';
         END
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- fact_customer_analytics → dim_customer
-        -- ══════════════════════════════════════════════════════════════════
         IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_customer_analytics_customer')
         BEGIN
             ALTER TABLE gold.fact_customer_analytics ADD CONSTRAINT fk_fact_customer_analytics_customer
@@ -587,9 +598,6 @@ BEGIN
             PRINT '  ✓ Added: fk_fact_customer_analytics_customer';
         END
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- fact_customer_btyd_inputs → dim_customer
-        -- ══════════════════════════════════════════════════════════════════
         IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_customer_btyd_inputs_customer')
         BEGIN
             ALTER TABLE gold.fact_customer_btyd_inputs ADD CONSTRAINT fk_fact_customer_btyd_inputs_customer
@@ -597,9 +605,20 @@ BEGIN
             PRINT '  ✓ Added: fk_fact_customer_btyd_inputs_customer';
         END
 
-        -- ══════════════════════════════════════════════════════════════════
-        -- fact_salesreason → fact_sales + dim_salesreason (bridge table)
-        -- ══════════════════════════════════════════════════════════════════
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_customer_btyd_predictions_customer')
+        BEGIN
+            ALTER TABLE gold.fact_customer_btyd_predictions ADD CONSTRAINT fk_fact_customer_btyd_predictions_customer
+                FOREIGN KEY (customer_key) REFERENCES gold.dim_customer(customer_key);
+            PRINT '  ✓ Added: fk_fact_customer_btyd_predictions_customer';
+        END
+
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_customer_btyd_eval_customer')
+        BEGIN
+            ALTER TABLE gold.fact_customer_btyd_eval ADD CONSTRAINT fk_fact_customer_btyd_eval_customer
+                FOREIGN KEY (customer_key) REFERENCES gold.dim_customer(customer_key);
+            PRINT '  ✓ Added: fk_fact_customer_btyd_eval_customer';
+        END
+
         IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_fact_salesreason_sales')
         BEGIN
             ALTER TABLE gold.fact_salesreason ADD CONSTRAINT fk_fact_salesreason_sales
@@ -615,41 +634,34 @@ BEGIN
         END
 
         PRINT '';
-        PRINT '  ✓ SECTION 3 Complete – 11 Foreign Keys Created (Star Schema Enforced)';
+        PRINT '  ✓ SECTION 3 Complete – Foreign Keys Restored';
         PRINT '';
 
-        -- ====================================================================
-        -- COMMIT TRANSACTION
-        -- ====================================================================
         COMMIT TRANSACTION;
 
         SET @EndTime = SYSUTCDATETIME();
 
         PRINT '=================================================================================';
-        PRINT 'Gold Layer ETL v3.0 – COMPLETED SUCCESSFULLY';
+        PRINT 'Gold Layer ETL v3.2 – COMPLETED SUCCESSFULLY';
         PRINT '=================================================================================';
-        PRINT '  ✓ 5 dimension tables merged (SCD Type 1)';
-        PRINT '  ✓ 5 fact tables loaded:';
-        PRINT '      - fact_sales (transaction grain)';
-        PRINT '      - fact_customer_analytics (customer grain - Q1/Q2/Q3)';
-        PRINT '      - fact_customer_cohort (cohort × period grain - Q4)';
-        PRINT '      - fact_customer_btyd_inputs (customer grain - Q5/Q6/Q7)';
-        PRINT '      - fact_salesreason (bridge table)';
-        PRINT '  ✓ All analytical logic preserved from validation queries';
+        PRINT '  ✓ 5 dimension tables merged';
+        PRINT '  ✓ 5 fact tables loaded';
+        PRINT '  ✓ BTYD calibration inputs created';
+        PRINT '  ✓ BTYD prediction/eval tables prepared for Python output';
         PRINT '  ✓ Observation date: ' + CONVERT(VARCHAR(10), @ObservationEndDate, 120);
+        PRINT '  ✓ Holdout start date: ' + CONVERT(VARCHAR(10), @HoldoutStartDate, 120);
         PRINT '';
         PRINT 'ETL Start Time : ' + CONVERT(VARCHAR(30), @StartTime, 121);
         PRINT 'ETL End Time   : ' + CONVERT(VARCHAR(30), @EndTime, 121);
         PRINT 'Duration       : ' + CAST(DATEDIFF(SECOND, @StartTime, @EndTime) AS VARCHAR(20)) + ' seconds';
         PRINT '=================================================================================';
-
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
         SELECT @ErrorMessage = ERROR_MESSAGE(), @ErrorSeverity = ERROR_SEVERITY(), @ErrorState = ERROR_STATE();
         PRINT '';
         PRINT '=================================================================================';
-        PRINT 'ERROR: Gold Layer ETL v3.0 Failed – Transaction Rolled Back';
+        PRINT 'ERROR: Gold Layer ETL v3.2 Failed – Transaction Rolled Back';
         PRINT '=================================================================================';
         PRINT 'Error Message  : ' + @ErrorMessage;
         PRINT 'Error Severity : ' + CAST(@ErrorSeverity AS VARCHAR(10));
@@ -662,10 +674,10 @@ END;
 GO
 
 PRINT '=================================================================================';
-PRINT 'Stored procedure gold.sp_load_complete_datawarehouse v3.0 created successfully';
+PRINT 'Stored procedure gold.sp_load_complete_datawarehouse v3.2 created successfully';
 PRINT '=================================================================================';
 PRINT 'Usage: EXEC gold.sp_load_complete_datawarehouse;';
 PRINT '=================================================================================';
 GO
 
-Usage: EXEC gold.sp_load_complete_datawarehouse;
+EXEC gold.sp_load_complete_datawarehouse;
