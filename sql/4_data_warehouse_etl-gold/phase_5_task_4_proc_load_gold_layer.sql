@@ -3,6 +3,8 @@
 Gold Layer ETL Stored Procedure – Fixed for BTYD Holdout + Prediction Tables
 =================================================================================
 VERSION  : 3.2
+AUTHOR   : Amr Bayomei Basha
+DATE     : Oct 2026
 TARGET   : SQL Server – AdventureWorks2025_CustomerDW
 DATABASE : Run in [AdventureWorks2025_CustomerDW] context
 =================================================================================
