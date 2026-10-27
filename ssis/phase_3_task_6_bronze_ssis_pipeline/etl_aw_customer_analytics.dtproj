@@ -22,8 +22,8 @@
           <SSIS:Property SSIS:Name="VersionComments">
           </SSIS:Property>
           <SSIS:Property SSIS:Name="CreationDate">2026-03-05T04:03:18.9048003+03:00</SSIS:Property>
-          <SSIS:Property SSIS:Name="CreatorName">DESKTOP-3DLKDPK\Azab</SSIS:Property>
-          <SSIS:Property SSIS:Name="CreatorComputerName">DESKTOP-3DLKDPK</SSIS:Property>
+          <SSIS:Property SSIS:Name="CreatorName">localhost\Azab</SSIS:Property>
+          <SSIS:Property SSIS:Name="CreatorComputerName">localhost</SSIS:Property>
           <SSIS:Property SSIS:Name="Description">
           </SSIS:Property>
           <SSIS:Property SSIS:Name="PasswordVerifier" SSIS:Sensitive="1">AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAACCnNhg0N1UK5Qv8nkqm33QAAAAACAAAAAAAQZgAAAAEAACAAAAB3mVpTNS/VxxVJNx39FxMSBgHlqgbDxuwjnWZUrqFoxgAAAAAOgAAAAAIAACAAAAAbNEsO1MZ/EZCPvTyH744wCOY8Sovz+pG8aXxjavlrjJAAAADT76Kql3313t33GauiQbcG3dpd38Q90EInHT4kFtUjibNk+28bJDQ9aVQlGeNbVKSEijA3QO2N4AFNmRbUOqNyPfWCF5A0jaTL8tsCoA28lTHcFGETOpdhqTs1xb5OUseIH+I/10tj+gAU26LMeuA0Onh2YTAk7aZUb3n415Dwadx0oOfI3SW/O/VCmp/yR+NAAAAATOmjx4d4r4j4zNbJwlwA3IsbKoa/UJwxRtqPAaAWkiR2eNVAWKk2ROdrPGiFLAdDzZUjVMlQrwiw/4yiPGEs6A==</SSIS:Property>
@@ -52,7 +52,7 @@
                 <SSIS:Property SSIS:Name="ProtectionLevel">1</SSIS:Property>
               </SSIS:Properties>
               <SSIS:Parameters>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.ConnectByProxy">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.ConnectByProxy">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -67,7 +67,7 @@
                     <SSIS:Property SSIS:Name="DataType">3</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.ConnectionString">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.ConnectionString">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -78,11 +78,11 @@
                     <SSIS:Property SSIS:Name="IncludeInDebugDump">0</SSIS:Property>
                     <SSIS:Property SSIS:Name="Required">0</SSIS:Property>
                     <SSIS:Property SSIS:Name="Sensitive">0</SSIS:Property>
-                    <SSIS:Property SSIS:Name="Value">Data Source=DESKTOP-3DLKDPK;Initial Catalog=AdventureWorks2025_CustomerDW;Provider=MSOLEDBSQL.1;Integrated Security=SSPI;Application Name=SSIS-Package-{9C962B1E-92BE-4506-9DF5-13F753A0A06D}DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW;Auto Translate=False;</SSIS:Property>
+                    <SSIS:Property SSIS:Name="Value">Data Source=localhost;Initial Catalog=AdventureWorks2025_CustomerDW;Provider=MSOLEDBSQL.1;Integrated Security=SSPI;Application Name=SSIS-Package-{9C962B1E-92BE-4506-9DF5-13F753A0A06D}localhost.AdventureWorks2025_CustomerDW;Auto Translate=False;</SSIS:Property>
                     <SSIS:Property SSIS:Name="DataType">18</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.ConnectRetryCount">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.ConnectRetryCount">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -97,7 +97,7 @@
                     <SSIS:Property SSIS:Name="DataType">9</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.ConnectRetryInterval">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.ConnectRetryInterval">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -112,7 +112,7 @@
                     <SSIS:Property SSIS:Name="DataType">9</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.ConnectUsingManagedIdentity">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.ConnectUsingManagedIdentity">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -127,7 +127,7 @@
                     <SSIS:Property SSIS:Name="DataType">3</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.InitialCatalog">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.InitialCatalog">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -142,7 +142,7 @@
                     <SSIS:Property SSIS:Name="DataType">18</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.Password">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.Password">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -156,7 +156,7 @@
                     <SSIS:Property SSIS:Name="DataType">18</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.RetainSameConnection">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.RetainSameConnection">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -171,7 +171,7 @@
                     <SSIS:Property SSIS:Name="DataType">3</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.ServerName">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.ServerName">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
@@ -182,11 +182,11 @@
                     <SSIS:Property SSIS:Name="IncludeInDebugDump">0</SSIS:Property>
                     <SSIS:Property SSIS:Name="Required">0</SSIS:Property>
                     <SSIS:Property SSIS:Name="Sensitive">0</SSIS:Property>
-                    <SSIS:Property SSIS:Name="Value">DESKTOP-3DLKDPK</SSIS:Property>
+                    <SSIS:Property SSIS:Name="Value">localhost</SSIS:Property>
                     <SSIS:Property SSIS:Name="DataType">18</SSIS:Property>
                   </SSIS:Properties>
                 </SSIS:Parameter>
-                <SSIS:Parameter SSIS:Name="CM.DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW.UserName">
+                <SSIS:Parameter SSIS:Name="CM.localhost.AdventureWorks2025_CustomerDW.UserName">
                   <SSIS:Properties>
                     <SSIS:Property SSIS:Name="ID">
                     </SSIS:Property>
