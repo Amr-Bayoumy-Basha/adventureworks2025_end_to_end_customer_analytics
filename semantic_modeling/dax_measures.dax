@@ -1,0 +1,517 @@
+/*
+=====================================================================================
+AdventureWorks2025 Customer Analytics - Power BI Semantic Model
+DAX MEASURES (Phase 6)
+=====================================================================================
+Home table      : _Measures (a measures-only table, no data columns)
+Total measures  : 60  (6 display folders)
+Calculated tables: Metrics, Parameter (field parameters)
+
+  1. Sales & Profitability   11 measures
+  2. Time Intelligence        4 measures
+  3. Reference Cards         17 measures
+  4. RFM Analysis            11 measures
+  5. Cohort                  12 measures
+  6. BTYD                     5 measures
+                             --
+                             60
+
+Notes
+  - Every measure lives in the _Measures table and is grouped by display folder.
+  - The "Reference Cards" folder holds the year-over-year logic behind the KPI cards
+    (prior year, YoY %, arrow text and conditional-formatting colour).
+  - BTYD measures read the output tables written by the Python model (Phase 7).
+    In the final Python version p_alive is NULL on purpose (see the BTYD notebook), so
+    BTYD_Average_P_Alive returns BLANK and is not shown on the report.
+=====================================================================================
+*/
+
+
+-- =====================================================================================
+-- 1. SALES & PROFITABILITY   (display folder: Sales & Profitability)
+-- =====================================================================================
+
+AOV = DIVIDE([Revenue], [Orders])
+
+Avg Selling Price = DIVIDE([Revenue], [Quantity])
+
+Cost Amount = SUM('gold fact_sales'[cost_amount])
+
+-- CROSSFILTER makes dim_customer filter by what fact_sales sold, so only customers
+-- who bought in the current selection are counted.
+Customers =
+CALCULATE(
+    DISTINCTCOUNT('gold dim_customer'[customer_key]),
+    CROSSFILTER('gold dim_customer'[customer_key], 'gold fact_sales'[customer_key], Both)
+)
+
+Discount Amount = SUM('gold fact_sales'[discount_amount])
+
+Gross Margin % = DIVIDE([Gross Profit], [Revenue])
+
+Gross Profit = SUM('gold fact_sales'[gross_profit])
+
+Orders = DISTINCTCOUNT('gold fact_sales'[salesorder_id])
+
+Profit Per Order = DIVIDE([Gross Profit], [Orders])
+
+Quantity = SUM('gold fact_sales'[order_quantity])
+
+Revenue = SUM('gold fact_sales'[line_total])
+
+
+-- =====================================================================================
+-- 2. TIME INTELLIGENCE   (display folder: Time Intelligence)
+-- =====================================================================================
+-- Rolling 3-month averages: the average of the daily value over the 3 months ending at
+-- the last date in the current filter context.
+
+Rolling Avg 3M AOV =
+VAR MaxDate = MAX('gold dim_date'[date])
+VAR Period3M =
+    DATESINPERIOD(
+        'gold dim_date'[date],
+        MaxDate,
+        -3,
+        MONTH
+    )
+RETURN
+CALCULATE(
+    AVERAGEX(
+        VALUES('gold dim_date'[date]),
+        [AOV]
+    ),
+    Period3M
+)
+
+Rolling Avg 3M Customers =
+VAR MaxDate = MAX('gold dim_date'[date])
+VAR Period3M =
+    DATESINPERIOD(
+        'gold dim_date'[date],
+        MaxDate,
+        -3,
+        MONTH
+    )
+RETURN
+CALCULATE(
+    AVERAGEX(
+        VALUES('gold dim_date'[date]),
+        [Customers]
+    ),
+    Period3M
+)
+
+Rolling Avg 3M GP =
+VAR MaxDate = MAX('gold dim_date'[date])
+VAR Period3M =
+    DATESINPERIOD(
+        'gold dim_date'[date],
+        MaxDate,
+        -3,
+        MONTH
+    )
+RETURN
+CALCULATE(
+    AVERAGEX(
+        VALUES('gold dim_date'[date]),
+        [Gross Profit]
+    ),
+    Period3M
+)
+
+Rolling Avg 3M Revenue =
+VAR MaxDate = MAX('gold dim_date'[date])
+VAR Period3M =
+    DATESINPERIOD(
+        'gold dim_date'[date],
+        MaxDate,
+        -3,
+        MONTH
+    )
+RETURN
+CALCULATE(
+    AVERAGEX(
+        VALUES('gold dim_date'[date]),
+        [Revenue]
+    ),
+    Period3M
+)
+
+
+-- =====================================================================================
+-- 3. REFERENCE CARDS   (display folder: Reference Cards)
+-- =====================================================================================
+-- Pattern for each KPI card:  [Metric PY]  ->  [Metric YoY %]  ->  [Arrow text]  ->  [Colour]
+-- The arrow and colour measures feed the card's conditional formatting.
+-- Colour rule: >= +10% green | 0 to +10% lime | 0 to -5% amber | below -5% red
+
+-- ---- AOV ----
+AOV PY =
+CALCULATE(
+    [AOV],
+    DATEADD('gold dim_date'[date],
+    -1,
+    YEAR
+    ))
+
+AOV YoY % = DIVIDE([AOV] - [AOV PY], [AOV PY], 0)
+
+AOV YoY % Arrow =
+VAR Growth = [AOV YoY %]
+RETURN
+IF(
+    ISBLANK(Growth),
+    BLANK(),
+    SWITCH(
+        TRUE(),
+        Growth > 0,
+            "+" & FORMAT(Growth, "0.0%") & UNICHAR(10532),
+        Growth < 0,
+            FORMAT(Growth, "0.0%") &  UNICHAR(10534),
+        FORMAT(Growth, "0.0%") & " →"
+    )
+)
+
+AoV YoY % Color =
+SWITCH(
+    TRUE(),
+    [AOV YoY %] >= 0.10, "#22C55E",
+    [AOV YoY %] >= 0, "#84CC16",
+    [AOV YoY %] >= -0.05, "#F59E0B",
+    "#EF4444"
+)
+
+-- ---- Customers ----
+Customers PY =
+CALCULATE(
+    [Customers],
+    DATEADD('gold dim_date'[date],
+    -1,
+    YEAR
+    ))
+
+Customers YoY % = DIVIDE([Customers] - [Customers PY], [Customers PY], 0)
+
+Customers YoY % Arrow =
+VAR Growth = [Customers YoY %]
+RETURN
+IF(
+    ISBLANK(Growth),
+    BLANK(),
+    SWITCH(
+        TRUE(),
+        Growth > 0,
+            "+" & FORMAT(Growth, "0.0%") & UNICHAR(10532),
+        Growth < 0,
+            FORMAT(Growth, "0.0%") &  UNICHAR(10534),
+        FORMAT(Growth, "0.0%") & " →"
+    )
+)
+
+Customers YoY % Color =
+SWITCH(
+    TRUE(),
+    [Customers YoY %] >= 0.10, "#22C55E",
+    [Customers YoY %] >= 0, "#84CC16",
+    [Customers YoY %] >= -0.05, "#F59E0B",
+    "#EF4444"
+)
+
+-- ---- Gross Profit ----
+Gross Profit PY =
+CALCULATE(
+    [Gross Profit],
+    DATEADD('gold dim_date'[date],
+    -1,
+    YEAR
+    ))
+
+Gross Profit YoY % =
+DIVIDE([Gross Profit] - [Gross Profit PY], [Gross Profit PY], 0)
+
+Gross Profit YoY % Arrow =
+VAR Growth = [Gross Profit YoY %]
+RETURN
+IF(
+    ISBLANK(Growth),
+    BLANK(),
+    SWITCH(
+        TRUE(),
+        Growth > 0,
+            "+" & FORMAT(Growth, "0.0%") & UNICHAR(10532),
+        Growth < 0,
+            FORMAT(Growth, "0.0%") &  UNICHAR(10534),
+        FORMAT(Growth, "0.0%") & " →"
+    )
+)
+
+Gross Profit YoY % Color =
+SWITCH(
+    TRUE(),
+    [Gross Profit YoY %] >= 0.10, "#22C55E",
+    [Gross Profit YoY %] >= 0, "#84CC16",
+    [Gross Profit YoY %] >= -0.05, "#F59E0B",
+    "#EF4444"
+)
+
+-- ---- Revenue ----
+Revenue PY =
+CALCULATE(
+    [Revenue],
+    DATEADD('gold dim_date'[date],
+    -1,
+    YEAR
+    ))
+
+Revenue YoY = [Revenue] - [Revenue PY]
+
+Revenue YoY % = DIVIDE([Revenue] - [Revenue PY], [Revenue PY], 0)
+
+Revenue YoY % Arrow =
+VAR Growth = [Revenue YoY %]
+RETURN
+IF(
+    ISBLANK(Growth),
+    BLANK(),
+    SWITCH(
+        TRUE(),
+        Growth > 0,
+            "+" & FORMAT(Growth, "0.0%") & UNICHAR(10532),
+        Growth < 0,
+            FORMAT(Growth, "0.0%") &  UNICHAR(10534),
+        FORMAT(Growth, "0.0%") & " →"
+    )
+)
+
+Revenue YoY % Color =
+SWITCH(
+    TRUE(),
+    [Revenue YoY %] >= 0.10, "#22C55E",
+    [Revenue YoY %] >= 0, "#84CC16",
+    [Revenue YoY %] >= -0.05, "#F59E0B",
+    "#EF4444"
+)
+
+
+-- =====================================================================================
+-- 4. RFM ANALYSIS   (display folder: RFM Analysis)
+-- =====================================================================================
+
+At Risk Customers =
+CALCULATE(
+    [Purchased Customers],
+    'gold fact_customer_analytics'[customer_segment] IN
+    {
+    "About To Sleep",
+    "Hibernating",
+    "Lost Customers"
+    }
+)
+
+High Value Customers =
+CALCULATE(
+    [Purchased Customers],
+    'gold fact_customer_analytics'[customer_segment] IN
+    {
+    "Champions",
+    "Loyal Customers"
+    }
+)
+
+-- ---- Segment action panel (reads the dim_segment_playbook table) ----
+MAC_Customer_Profile =
+IF(
+    [MAC_Selected_Segment] = "Click on the (Treemap) to Select a Segment",
+    "Click on the (Treemap) to view customer profiling data.",
+    LOOKUPVALUE(
+        dim_segment_playbook[Customer Profile],
+        dim_segment_playbook[customer_segment],
+        [MAC_Selected_Segment]
+    )
+)
+
+MAC_Header_Title =
+IF(
+    ISFILTERED('gold fact_customer_analytics'[customer_segment]),
+    "🎯 CRM Action Plan: " & [MAC_Selected_Segment],
+    "💡 Select a Segment to Begin"
+)
+
+MAC_Marketing_Strategy =
+IF(
+    [MAC_Selected_Segment] = "Click on the (Treemap) to Select a Segment",
+    "Select a customer segment to generate automated CRM marketing strategies.",
+    LOOKUPVALUE(
+        dim_segment_playbook[Marketing Strategy],
+        dim_segment_playbook[customer_segment],
+        [MAC_Selected_Segment]
+    )
+)
+
+MAC_Primary_KPI =
+IF(
+    [MAC_Selected_Segment] = "Click on the (Treemap) to Select a Segment",
+    BLANK(),  -- Safely returns a clean blank space in DAX
+    LOOKUPVALUE(
+        dim_segment_playbook[Primary KPI],
+        dim_segment_playbook[customer_segment],
+        [MAC_Selected_Segment]
+    )
+)
+
+MAC_Segment_Share =
+IF(
+    ISFILTERED('gold fact_customer_analytics'[customer_segment]),
+    VAR TotalCust = CALCULATE(DISTINCTCOUNT('gold fact_customer_analytics'[customer_key]), ALL('gold fact_customer_analytics'))
+    RETURN
+    DIVIDE([Purchased Customers], TotalCust),
+    BLANK()
+)
+
+MAC_Selected_Segment =
+SELECTEDVALUE(
+    'gold fact_customer_analytics'[customer_segment],
+    "Select a Segment"
+)
+
+Median Days Since Purchase =
+MEDIAN(
+    'gold fact_customer_analytics'[days_since_last_purchase]
+)
+
+Median Purchase Cycle =
+MEDIAN(
+'gold fact_customer_analytics'[avg_days_between_purchases]
+)
+
+Purchased Customers =
+DISTINCTCOUNT('gold fact_customer_analytics'[customer_key])
+
+
+-- =====================================================================================
+-- 5. COHORT   (display folder: Cohort)
+-- =====================================================================================
+-- The HASONEVALUE guards keep the cohort matrix blank at subtotal and total levels,
+-- where summing across cohorts or periods would be misleading.
+
+Active Customers =
+IF(
+    HASONEVALUE('gold fact_customer_cohort'[Period Label]) && HASONEVALUE('gold fact_customer_cohort'[cohort_month]),
+    SUM('gold fact_customer_cohort'[active_customers]),
+    BLANK()
+)
+
+Churn Rate =
+1 - [Retention Rate]
+
+Cohort Gross Profit =
+IF(
+    HASONEVALUE('gold fact_customer_cohort'[Period Label]) && HASONEVALUE('gold fact_customer_cohort'[cohort_month]),
+    SUM('gold fact_customer_cohort'[cohort_gross_profit]),
+    BLANK()
+)
+
+Cohort Size Base =
+SUMX(
+    VALUES('gold fact_customer_cohort'[cohort_month]),
+    CALCULATE(MAX('gold fact_customer_cohort'[cohort_size]))
+)
+
+Gross Profit per Customer =
+IF(
+    HASONEVALUE('gold fact_customer_cohort'[Period Label]) && HASONEVALUE('gold fact_customer_cohort'[cohort_month]),
+    DIVIDE(
+        SUM('gold fact_customer_cohort'[cohort_gross_profit]),
+        SUM('gold fact_customer_cohort'[active_customers]),
+        0
+    ),
+    BLANK()
+)
+
+New Customers Revenue =
+CALCULATE(
+    SUM('gold fact_customer_cohort'[cohort_revenue]),
+    'gold fact_customer_cohort'[period_number] = 0
+)
+
+Orders per Customer =
+IF(
+    HASONEVALUE('gold fact_customer_cohort'[Period Label]) && HASONEVALUE('gold fact_customer_cohort'[cohort_month]),
+    DIVIDE(
+        SUM('gold fact_customer_cohort'[cohort_orders]),
+        SUM('gold fact_customer_cohort'[active_customers]),
+        0
+    ),
+    BLANK()
+)
+
+Repeat Customers Revenue =
+CALCULATE(
+    SUM('gold fact_customer_cohort'[cohort_revenue]),
+    'gold fact_customer_cohort'[period_number] > 0)
+
+Repeat Revenue Share % =
+DIVIDE(
+    [Repeat Customers Revenue],
+    [Total Portfolio Revenue],
+    0
+)
+
+Retention Rate =
+AVERAGE('gold fact_customer_cohort'[retention_rate])
+
+Revenue per Customer =
+IF(
+    HASONEVALUE('gold fact_customer_cohort'[Period Label]) && HASONEVALUE('gold fact_customer_cohort'[cohort_month]),
+    DIVIDE(
+        SUM('gold fact_customer_cohort'[cohort_revenue]),
+        SUM('gold fact_customer_cohort'[active_customers]),
+        0
+    ),
+    BLANK()
+)
+
+Total Portfolio Revenue = SUM('gold fact_customer_cohort'[cohort_revenue])
+
+
+-- =====================================================================================
+-- 6. BTYD   (display folder: BTYD)
+-- =====================================================================================
+-- Read the output tables written by the Python BTYD notebook.
+-- Note: p_alive is stored as NULL in the final Python version, so BTYD_Average_P_Alive
+-- returns BLANK. It is kept in the model but not shown on the report.
+
+Actual Holdout Purchases = SUM('gold fact_customer_btyd_eval'[actual_holdout_purchases])
+
+BTYD_Average_P_Alive = AVERAGE('gold fact_customer_btyd_predictions'[p_alive])
+
+BTYD_Model_MAE = AVERAGE('gold fact_customer_btyd_eval'[absolute_error])
+
+BTYD_Projected_Revenue_90d = SUM('gold fact_customer_btyd_predictions'[predicted_revenue_90d])
+
+Predicted Purchases = SUM('gold fact_customer_btyd_eval'[predicted_holdout_purchases])
+
+
+-- =====================================================================================
+-- FIELD PARAMETERS (calculated tables)
+-- =====================================================================================
+-- Let report users switch the measure shown by a visual with a slicer.
+
+-- Executive dashboard metric switcher
+Metrics = {
+    ("Revenue", NAMEOF('_Measures'[Revenue]), 0),
+    ("Gross Profit", NAMEOF('_Measures'[Gross Profit]), 1),
+    ("Customers", NAMEOF('_Measures'[Customers]), 2),
+    ("Gross Margin %", NAMEOF('_Measures'[Gross Margin %]), 3),
+    ("AOV", NAMEOF('_Measures'[AOV]), 4)
+}
+
+-- Cohort matrix metric switcher
+Parameter = {
+    ("Retention Rate", NAMEOF('_Measures'[Retention Rate]), 0),
+    ("Churn Rate", NAMEOF('_Measures'[Churn Rate]), 1),
+    ("Active Customers", NAMEOF('_Measures'[Active Customers]), 2),
+    ("Cohort Gross Profit", NAMEOF('_Measures'[Cohort Gross Profit]), 3),
+    ("Gross Profit per Customer", NAMEOF([Gross Profit per Customer]), 4)
+}
