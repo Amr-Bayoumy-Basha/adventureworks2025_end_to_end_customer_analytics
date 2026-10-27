@@ -3,8 +3,8 @@
   DTS:refId="Package"
   DTS:CreationDate="3/5/2026 4:03:20 AM"
   DTS:CreationName="Microsoft.Package"
-  DTS:CreatorComputerName="DESKTOP-3DLKDPK"
-  DTS:CreatorName="DESKTOP-3DLKDPK\Azab"
+  DTS:CreatorComputerName="localhost"
+  DTS:CreatorName="localhost\Azab"
   DTS:DTSID="{91742387-26B2-4CB7-B4B0-E35FC3B7DF6A}"
   DTS:ExecutableType="Microsoft.Package"
   DTS:LastModifiedProductVersion="17.0.1010.2"
@@ -17,15 +17,15 @@
     DTS:Name="PackageFormatVersion">8</DTS:Property>
   <DTS:ConnectionManagers>
     <DTS:ConnectionManager
-      DTS:refId="Package.ConnectionManagers[DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW]"
+      DTS:refId="Package.ConnectionManagers[localhost.AdventureWorks2025_CustomerDW]"
       DTS:CreationName="OLEDB"
       DTS:DTSID="{9C962B1E-92BE-4506-9DF5-13F753A0A06D}"
-      DTS:ObjectName="DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW">
+      DTS:ObjectName="localhost.AdventureWorks2025_CustomerDW">
       <DTS:ObjectData>
         <DTS:ConnectionManager
           DTS:ConnectRetryCount="1"
           DTS:ConnectRetryInterval="5"
-          DTS:ConnectionString="Data Source=DESKTOP-3DLKDPK;Initial Catalog=AdventureWorks2025_CustomerDW;Provider=MSOLEDBSQL.1;Integrated Security=SSPI;Application Name=SSIS-Package-{9C962B1E-92BE-4506-9DF5-13F753A0A06D}DESKTOP-3DLKDPK.AdventureWorks2025_CustomerDW;Auto Translate=False;" />
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=AdventureWorks2025_CustomerDW;Provider=MSOLEDBSQL.1;Integrated Security=SSPI;Application Name=SSIS-Package-{9C962B1E-92BE-4506-9DF5-13F753A0A06D}localhost.AdventureWorks2025_CustomerDW;Auto Translate=False;" />
       </DTS:ObjectData>
     </DTS:ConnectionManager>
   </DTS:ConnectionManagers>
