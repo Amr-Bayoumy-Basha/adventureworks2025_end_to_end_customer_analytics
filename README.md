@@ -199,7 +199,7 @@ The GitHub repository focuses on the implementation. For the complete roadmap, a
 - **Dimensional modeling and star schema design**
 - **Power BI** (semantic model and dashboards)
 - **DAX**
-- **Python** (`pandas`, `lifetimes`, `SQLAlchemy`, `matplotlib`)
+- **Python** (`numpy`,`pandas`, `lifetimes`, `SQLAlchemy`, `matplotlib`)
 - **Excel**
 
 ---
