@@ -1,5 +1,16 @@
 # 📊 BTYD Model Notebook Explainer (`btyd_model.ipynb`)
 
+---
+
+**📅 Document Created**: Oct 2026 
+**👤 Author**: Amr Bayomei Basha  
+**🏢 Project**: AdventureWorks End-to-End Customer Analytics  
+**📂 Phase**: phase_7_advanced_analytics
+
+---
+
+
+
 What this notebook does, what it found, and what it deliberately does **not** claim.
 
 ---
