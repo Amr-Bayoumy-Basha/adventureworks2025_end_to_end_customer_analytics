@@ -158,9 +158,9 @@ AdventureWorks is synthetic data, so the method and the pipeline are the point, 
 │   ├── README.md
 │   └── phase_3_task_6_bronze_ssis_pipeline/
 │
-├── 06_semantic_modeling/      ← Power BI semantic model: README, diagram, 60 DAX measures
+├── semantic_modeling/      ← Power BI semantic model: README, diagram, 60 DAX measures
 ├── power_bi/                  ← dashboard pages and screenshots
-├── python/                    ← BTYD notebook and explainer
+├── btyd_python/                    ← BTYD notebook and explainer
 │
 ├── README.md
 └── LICENSE
