@@ -154,13 +154,17 @@ Because status does not predict repurchase, any real campaign should be run as a
 
 ---
 
-## 8) 💵 Revenue
+## 8) 💵 Revenue Backtest
 
-Predicted 90-day revenue: **$9,197,838** (expected purchases × expected order value).
+| Measure | Predicted | Actual | Error |
+|---|---|---|---|
+| Purchases | 2,654.6 | 2,475 | +7.3% |
+| Revenue | $9,197,838 | $5,638,925 | **+63.1%** |
+| Revenue per purchase | about $3,465 | $2,278 | +52% |
 
-Actual holdout revenue is calculated in SQL on the exact 90-day window. An earlier Python/SQL check used a 91-day window, which explained the purchase-day mismatch (2,538 vs 2,475). Actual revenue: **$[fill after rerun]**, error **[fill]%**.
+Actual revenue is calculated from Silver on the same 90-day window as the inputs table (2025-04-01 to 2025-06-29), and the purchase days match for every customer (2,475).
 
-The Gamma-Gamma assumption is violated (section 3) and one-time buyers receive an assumed order value, so the revenue forecast is the least reliable output. Treat the revenue backtest as a check, not as proof of accuracy.
+Revenue = expected purchases × expected order value. Purchases were close, so the gap comes from the order value: Gamma-Gamma assumes frequency and order value are unrelated (here the correlation is 0.428), so it assigns high order values to frequent buyers, and the actual purchases came from other customers. **The revenue forecast overshot by 63% and should not be used for budgeting.** A fix would be to model order value separately by segment or use a supervised revenue model.
 
 ---
 
