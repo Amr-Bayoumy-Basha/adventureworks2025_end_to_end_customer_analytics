@@ -3,10 +3,10 @@
 AdventureWorks2025 Customer Analytics - Power BI Semantic Model
 DAX MEASURES (Phase 6)
 
-**📅 Created**: Oct 2026 
-**👤 Author**: Amr Bayomei Basha  
-**🏢 Project**: AdventureWorks End-to-End Customer Analytics  
-**📂 Phase**: phase_6_semantic_modeling
+Created: Oct 2026 
+Author: Amr Bayomei Basha  
+Project: AdventureWorks End-to-End Customer Analytics  
+Phase: phase_6_semantic_modeling
 
 =====================================================================================
 Home table      : _Measures (a measures-only table, no data columns)
