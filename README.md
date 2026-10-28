@@ -80,7 +80,7 @@ AdventureWorks2025 (OLTP)
 | **Gold** | Customer-centric star schema: sales facts, RFM metrics, cohort table and BTYD input / prediction / evaluation tables |
 | **Semantic model** | Relationships, 60 DAX measures, field parameters and a segment playbook, built in Power BI |
 | **Python** | BTYD models (Modified BG/NBD, Gamma-Gamma), baselines, diagnostics and write-back to Gold |
-| **Dashboards** | Executive Summary, RFM, Cohort Retention and Customer Forecasting pages |
+| **Dashboards** | Executive Summary, RFM, Customer Forecasting and Cohort Retention pages, plus a customer drill-through ([`power_bi/`](power_bi/)) |
 
 > **Note on the semantic layer:** the original plan used an SSAS Tabular model. I replaced it with a **Power BI semantic model**, which keeps the model, the DAX measures and the report in one tool and is the layer the dashboards actually use.
 
@@ -116,6 +116,42 @@ A multi-fact star schema in Power BI: **17 tables, 14 relationships, 60 DAX meas
 | BTYD | 5 |
 
 📁 Full documentation, model diagram and the complete DAX file: [`semantic_modeling/`](semantic_modeling/)
+
+---
+
+## Power BI Dashboards (Phase 7)
+
+Five report pages on the semantic model, each titled with the business question it answers. The Forecasting page also reads the BTYD predictions written back to Gold by Python.
+
+| Page | Business question |
+|---|---|
+| Executive Summary | How is the business performing, and where does revenue come from? |
+| RFM Customer Intelligence | Who are our most valuable and most at-risk customers, and what should we do with each group? |
+| Customer Forecasting | What will customers buy in the next 90 days, and how far can we trust it? |
+| Customer Retention Analytics | Are newer customer cohorts better or worse? |
+| Customer Details | Drill-through: exactly which customers are in this segment? |
+
+### Executive Summary
+![Executive Summary](power_bi/1-Executive.png)
+KPI cards with year-over-year change and 3-month rolling trends, a decomposition tree (active status → channel → RFM segment → product line), and a field-parameter switch across Revenue, Gross Profit, Customers, Gross Margin % and AOV.
+
+### RFM Customer Intelligence
+![RFM Customer Intelligence](power_bi/2-RFM%20Customer%20Intelligence.png)
+19.12K customers in RFM segments. Selecting a segment shows its profile, recommended action plan and success KPI, read from a segment playbook table in the model.
+
+### Customer Forecasting
+![Customer Forecasting](power_bi/3-Customer%20Forecasting.png)
+BG/NBD and Gamma-Gamma forecasts shown next to their 90-day holdout validation, customer status by value tier, and the target list per marketing action. The revenue forecast ($9.20M) over-predicted the holdout ($5.64M) by 63%; see the evaluation below.
+
+### Customer Retention Analytics
+![Customer Retention Analytics](power_bi/4-Customer%20Retention%20Analytics.png)
+Monthly acquisition cohort matrix with a pill slicer for retention, churn, active customers and cohort profit. Repeat customers generate 71.5% of revenue.
+
+### Customer Details (drill-through)
+![Customer Details](power_bi/5-Customers%20Detalis.png)
+Customer-level list with RFM score, segment, lifetime profit and the recommended marketing strategy, reached by drilling through from the RFM or Forecasting page.
+
+📁 Page-by-page guide, visuals, measures and the `.pbix` file: [`power_bi/`](power_bi/)
 
 ---
 
@@ -168,9 +204,14 @@ AdventureWorks is synthetic data, so the method and the pipeline are the point, 
 │   ├── README.md
 │   └── phase_3_task_6_bronze_ssis_pipeline/
 │
-├── semantic_modeling/      ← Power BI semantic model: README, diagram, 60 DAX measures
-├── power_bi/                  ← dashboard pages and screenshots
-├── btyd_python/                    ← BTYD notebook and explainer
+├── semantic_modeling/         ← Power BI semantic model: README, diagram, 60 DAX measures
+│
+├── power_bi/                  ← Phase 7 report
+│   ├── README.md              ← page-by-page dashboard guide
+│   ├── adventureworks2025_customer_analyticsV2.pbix
+│   └── 1-Executive.png … 5-Customers Detalis.png
+│
+├── btyd_python/               ← BTYD notebook and explainer
 │
 ├── README.md
 └── LICENSE
@@ -187,8 +228,8 @@ AdventureWorks is synthetic data, so the method and the pipeline are the point, 
    - install: `pip install lifetimes pandas numpy matplotlib sqlalchemy pyodbc`
    - set your server name once: `setx SQL_SERVER "YOUR_SERVER\INSTANCE"` (Windows), then restart Jupyter
    - requires the *ODBC Driver 17 for SQL Server*
-   - run the notebook in `python/` from top to bottom; it writes predictions back to Gold
-5. **Power BI:** open the report, point the data source to your server and refresh.
+   - run the notebook in `btyd_python/` from top to bottom; it writes predictions back to Gold
+5. **Power BI:** open `power_bi/adventureworks2025_customer_analyticsV2.pbix`, change the data source server under *Transform data → Data source settings*, and refresh.
 
 > The Gold load procedure empties the BTYD output tables and reloads them from staging tables the notebook writes, so running the warehouse refresh after the notebook does not lose the predictions.
 
