@@ -1,11 +1,15 @@
 # 🧩 Phase 6: Semantic Model (Power BI)
 
-The Power BI semantic model that sits on top of the Gold layer of the AdventureWorks2025 customer analytics warehouse. It turns the star-schema tables into business measures, reusable KPI logic and interactive report behaviour for the dashboards.
-
+---
 **📅 Document Created**: Oct 2026 
 **👤 Author**: Amr Bayomei Basha  
 **🏢 Project**: AdventureWorks End-to-End Customer Analytics  
 **📂 Phase**: phase_6_semantic_modeling
+---
+
+The Power BI semantic model that sits on top of the Gold layer of the AdventureWorks2025 customer analytics warehouse. It turns the star-schema tables into business measures, reusable KPI logic and interactive report behaviour for the dashboards.
+
+
 
 | | |
 |---|---|
