@@ -22,6 +22,16 @@ The project supports customer analytics use cases such as:
 
 ---
 
+# AdventureWorks Source Database
+
+This project uses Microsoft's AdventureWorks OLTP sample database.
+
+For licensing and the latest version, download it directly from Microsoft's official repository:
+
+https://github.com/microsoft/sql-server-samples/tree/master/samples/databases/adventure-works
+
+After restoring the database, execute the SQL scripts in the `/SQL` folder to recreate the complete data warehouse 
+
 ## Project Objective
 
 Turn raw OLTP data into a business-ready analytical platform using a layered architecture:
