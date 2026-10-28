@@ -115,7 +115,7 @@ A multi-fact star schema in Power BI: **17 tables, 14 relationships, 60 DAX meas
 | Cohort | 12 |
 | BTYD | 5 |
 
-📁 Full documentation, model diagram and the complete DAX file: [`06_semantic_modeling/`](06_semantic_modeling/)
+📁 Full documentation, model diagram and the complete DAX file: [`semantic_modeling/`](semantic_modeling/)
 
 ---
 
@@ -143,7 +143,7 @@ I applied the BG/NBD and Gamma-Gamma models from the Wharton Customer Analytics 
 
 AdventureWorks is synthetic data, so the method and the pipeline are the point, not the business conclusions.
 
-📁 Notebook, explainer and details: [`python/`](python/)
+📁 Notebook, explainer and details: [`btyd_python/`](btyd_python/)
 
 ---
 
